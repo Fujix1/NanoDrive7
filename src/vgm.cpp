@@ -158,23 +158,20 @@ bool VGM::ready() {
     } else {
       if (CHIP0 == CHIP_YM2203_0) {
         freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
-      }
-      if (CHIP1 == CHIP_YM2203_1) {
+      } else if (CHIP1 == CHIP_YM2203_1) {
         freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2203_1);
       }
 
       // Use YM2612 as YM2203
       if (CHIP0 == CHIP_YM2612) {
         freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2612);
-      }
-      if (CHIP1 == CHIP_YM2612) {
+      } else if (CHIP1 == CHIP_YM2612) {
         freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       }
       // Use YM2610 as YM2203
       if (CHIP0 == CHIP_YM2610) {
         freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2610);
-      }
-      if (CHIP1 == CHIP_YM2610) {
+      } else if (CHIP1 == CHIP_YM2610) {
         freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       }
     }
@@ -260,7 +257,7 @@ bool VGM::ready() {
   updateDisp({gd3.trackEn, gd3.trackJp, gd3.gameEn, gd3.gameJp, gd3.systemEn, gd3.systemJp, gd3.authorEn, gd3.authorJp,
               gd3.date, chip[0], chip[1], FORMAT_LABEL[vgm.format], 0, n, ndFile.files[ndFile.currentDir].size()});
 
-  _vgmStart = millis();
+  _vgmStart = micros();
   return true;
 }
 
@@ -629,27 +626,24 @@ void VGM::vgmProcess() {
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegister(reg, dat, 0);
-      //_vgmSamples++;
-      _vgmDelay -= 1 * ONE_CYCLE;
       break;
 
     case 0x30:  // SN76489 CHIP 2
       FM.write(get_ui8(), 2, freq[chipSlot[CHIP_SN76489_1]]);
-      _vgmSamples++;
-      _vgmDelay -= (32000000 / freq[chipSlot[CHIP_SN76489_1]]) * 1000 + ONE_CYCLE - 1600 - 1800;
+      //_vgmSamples++;
+      //_vgmDelay -= (32000000 / freq[chipSlot[CHIP_SN76489_1]]) * 1000 + ONE_CYCLE - 1600 - 1800;
       break;
 
     case 0x50:  // SN76489 CHIP 1
       FM.write(get_ui8(), 1, freq[chipSlot[CHIP_SN76489_0]]);
-      _vgmSamples++;
-      _vgmDelay -= (32000000 / freq[chipSlot[CHIP_SN76489_0]]) * 1000 + ONE_CYCLE - 1600 - 1800;
+      //_vgmSamples++;
+      //_vgmDelay -= (32000000 / freq[chipSlot[CHIP_SN76489_0]]) * 1000 + ONE_CYCLE - 1600 - 1800;
       break;
 
     case 0x52:  // YM2612 port 0, write value dd to register aa
       reg = get_ui8();
       dat = get_ui8();
       FM.setYM2612(0, reg, dat, 0);
-      _vgmSamples++;
 
       if (reg == 0x2a) {
         // DAC data strem
@@ -665,7 +659,7 @@ void VGM::vgmProcess() {
       reg = get_ui8();
       dat = get_ui8();
       FM.setYM2612(1, reg, dat, 0);
-      _vgmSamples++;
+
       if (reg >= 0x30 && reg <= 0x9e) {
         _vgmDelay -= ONE_CYCLE - 1600 - 1800;
       } else if (reg >= 0xa0 && reg <= 0xb6) {
@@ -678,48 +672,36 @@ void VGM::vgmProcess() {
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegisterOPM(reg, dat, 0);
-      //_vgmSamples++;
-      _vgmDelay -= 1.28 * ONE_CYCLE;
       break;
 
     case 0x55:  // YM2203_0
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegister(reg, dat, 0);
-      //_vgmSamples++;
-      _vgmDelay -= 1.1 * ONE_CYCLE;
       break;
 
     case 0xA5:  // YM2203_1
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegister(reg, dat, 1);
-      //_vgmSamples++;
-      _vgmDelay -= 1.1 * ONE_CYCLE;
       break;
 
     case 0x5A:  // YM3812
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegisterOPL3(0, reg, dat, 1);
-      //_vgmSamples++;
-      _vgmDelay -= 1.00 * ONE_CYCLE;
       break;
 
     case 0x5E:  // YMF262 Port 0
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegisterOPL3(0, reg, dat, 1);
-      //_vgmSamples++;
-      _vgmDelay -= 1.00 * ONE_CYCLE;
       break;
 
     case 0x5F:  // YMF262 Port 1
       reg = get_ui8();
       dat = get_ui8();
       FM.setRegisterOPL3(1, reg, dat, 1);
-      //_vgmSamples++;
-      _vgmDelay -= 1.00 * ONE_CYCLE;
       break;
 
     // Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds)
@@ -821,14 +803,13 @@ void VGM::vgmProcess() {
       break;
   }
 
+  const uint64_t vgmTime = _vgmSamples * 22.67573696145125f;
+  const uint64_t realTime = micros() - _vgmStart;
+  if (realTime > vgmTime) _vgmDelay -= (realTime - vgmTime);
+
   if (_vgmDelay >= 3000) {
     ets_delay_us(_vgmDelay / 1000);
     _vgmDelay = _vgmDelay % 1000;
-
-    const int64_t vgmTime = _vgmSamples / 44.100;
-    const int64_t realTime = millis() - _vgmStart;
-    // Serial.println(realTime - vgmTime);
-    if (realTime - vgmTime > 0) _vgmDelay -= (realTime - vgmTime) * 1000;
   }
 }
 

@@ -442,12 +442,12 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
         // 横長
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_HEADER);
+        sprPngResized.fillSprite(C_DARK);
       } else {
         // 縦長画像
         w = 94.5 / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_HEADER);
+        sprPngResized.fillSprite(C_DARK);
       }
 
       if (AA) {
