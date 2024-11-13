@@ -88,8 +88,11 @@ void NJU72341::startFadeout() {
   }
 }
 
-void NJU72341::reset(uint8_t att) {
-  _attenuation = att;
+// att 減衰量dB: -1 = 変更しない
+void NJU72341::reset(int8_t att) {
+  if (att >= 0) {
+    _attenuation = att;
+  }
   fadeOutStatus = FADEOUT_BEFORE;
   resetFadeout();
 }
@@ -110,7 +113,7 @@ void NJU72341::setInputGain(tNJU72341_GAIN newInputGain) {
 // 全チャンネルの音量設定
 // 0:最大, 96: ミュート
 void NJU72341::setVolumeAll(uint8_t newGain) {
-  uint8_t bit = 119 - newGain;
+  uint8_t bit = 119 - newGain - _attenuation;
   Wire.beginTransmission(_slaveAddress);
   Wire.write(0x01);
   Wire.write(bit);
@@ -147,13 +150,13 @@ void NJU72341::setVolume_3B_4B(uint8_t newGain) {
 
 void NJU72341::mute() {
   _isMuted = true;
-  digitalWrite(NJU72341_MUTE_PIN, HIGH);
+  // digitalWrite(NJU72341_MUTE_PIN, HIGH);
   setVolumeAll(96);
 }
 
 void NJU72341::unmute() {
   setVolumeAll(0);
-  digitalWrite(NJU72341_MUTE_PIN, LOW);
+  // digitalWrite(NJU72341_MUTE_PIN, LOW);
   _isMuted = false;
 }
 

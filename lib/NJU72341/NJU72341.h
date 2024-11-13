@@ -9,7 +9,6 @@
 
 #include "../../src/config.h"
 
-
 #define NJU72341_ADDR 0x44  // I2C address
 #define NJU72342_ADDR 0x40  // I2C address
 
@@ -25,7 +24,7 @@ class NJU72341 {
  public:
   tFadeOutStatus fadeOutStatus = FADEOUT_BEFORE;
   void init(uint16_t fadeOutDuration, bool NJU72342);
-  void reset(uint8_t att);
+  void reset(int8_t att);
   void setInputGain(tNJU72341_GAIN newInputGain);
   void setVolume_1B_2B(uint8_t newGain);
   void setVolume_3B_4B(uint8_t newGain);
