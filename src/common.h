@@ -1,9 +1,6 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define ND_VERSION "6"
-#define ND_FIRM "1.8"
-
 // Current hardware setup
 #define CHIP0 CHIP_YM2203_0
 #define CHIP1 CHIP_YM2203_1
