@@ -18,7 +18,8 @@ const std::vector<String> FORMAT_LABEL = {"VGM", "XGM"};
 
 // GD3 構造体
 typedef struct {
-  String trackEn, trackJp, gameEn, gameJp, systemEn, systemJp, authorEn, authorJp, date, converted, notes;
+  String trackEn, trackJp, gameEn, gameJp, systemEn, systemJp, authorEn,
+      authorJp, date, converted, notes;
 } t_gd3;
 
 // チップ定義
@@ -37,9 +38,13 @@ typedef enum {
   CHIP_YMF262,
 } t_chip;
 
+// クロック使用番号
+typedef enum { CLK_0, CLK_1, CLK_2, CLK_3 } t_clockSlot;
+
 // チップ名
-const std::vector<String> CHIP_LABEL = {"",       "SN76489", "SN76489", "YM2612", "YM2151", "YM2203",
-                                        "YM2203", "YM2608",  "YM2610",  "YM3812", "AY8910", "YMF262"};
+const std::vector<String> CHIP_LABEL = {
+    "",       "SN76489", "SN76489", "YM2612", "YM2151", "YM2203",
+    "YM2203", "YM2608",  "YM2610",  "YM3812", "AY8910", "YMF262"};
 
 class VGM {
  public:
@@ -54,7 +59,7 @@ class VGM {
 
   std::vector<si5351Freq_t> freq = {SI5351_UNDEFINED, SI5351_UNDEFINED};
 
-  int8_t chipSlot[10];
+  int8_t chipSlot[11];
 
   bool vgmLoaded = false;
   bool xgmLoaded = false;

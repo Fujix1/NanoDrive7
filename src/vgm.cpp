@@ -10,8 +10,8 @@
 #include "fm.h"
 
 #define ONE_CYCLE \
-  22676  // 22.67573696145125 us
-         // 1 / 44100 * 1 000 000
+  22675.737f  // 22.67573696145125 us
+              // 1 / 44100 * 1 000 000
 
 //---------------------------------------------------------------------
 static std::string wstringToUTF8(const std::wstring& src) {
@@ -95,9 +95,9 @@ bool VGM::ready() {
   uint32_t sn76489_clock = get_ui32_at(0x0c);
   if (sn76489_clock) {
     if (CHIP0 == CHIP_SN76489_0) {
-      freq[0] = normalizeFreq(sn76489_clock, CHIP_SN76489_0);
+      freq[CHIP0_CLOCK] = normalizeFreq(sn76489_clock, CHIP_SN76489_0);
     } else if (CHIP1 == CHIP_SN76489_0) {
-      freq[1] = normalizeFreq(sn76489_clock, CHIP_SN76489_0);
+      freq[CHIP1_CLOCK] = normalizeFreq(sn76489_clock, CHIP_SN76489_0);
     }
 
     // デュアルSN76489
@@ -128,21 +128,21 @@ bool VGM::ready() {
   uint32_t ym2612_clock = get_ui32_at(0x2c);
   if (ym2612_clock) {
     if (CHIP0 == CHIP_YM2612) {
-      freq[0] = normalizeFreq(ym2612_clock, CHIP_YM2612);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym2612_clock, CHIP_YM2612);
     } else if (CHIP1 == CHIP_YM2612) {
-      freq[1] = normalizeFreq(ym2612_clock, CHIP_YM2612);
+      freq[CHIP1_CLOCK] = normalizeFreq(ym2612_clock, CHIP_YM2612);
     }
   }
 
   uint32_t ay8910_clock = (version >= 0x151 && dataOffset >= 0x78) ? get_ui32_at(0x74) : 0;
   if (ay8910_clock) {
     if (CHIP0 == CHIP_AY8910) {
-      freq[0] = normalizeFreq(ay8910_clock, CHIP_AY8910);
+      freq[CHIP0_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
     } else if (CHIP1 == CHIP_AY8910) {
-      freq[1] = normalizeFreq(ay8910_clock, CHIP_AY8910);
+      freq[CHIP1_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
     }
     if (CHIP0 == CHIP_YM2203_0) {
-      freq[0] = normalizeFreq(ay8910_clock, CHIP_AY8910);
+      freq[CHIP0_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
     }
   }
 
@@ -150,29 +150,29 @@ bool VGM::ready() {
   if (ym2203_clock) {
     if (ym2203_clock & 0x40000000) {  // check the second chip
       if (CHIP0 == CHIP_YM2203_0) {
-        freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
+        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
       }
       if (CHIP1 == CHIP_YM2203_1) {
-        freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2203_1);
+        freq[CHIP1_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2203_1);
       }
     } else {
       if (CHIP0 == CHIP_YM2203_0) {
-        freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
-      } else if (CHIP1 == CHIP_YM2203_1) {
-        freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2203_1);
+        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
+      } else if (CHIP1 == CHIP_YM2203_0) {
+        freq[CHIP1_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
       }
 
       // Use YM2612 as YM2203
       if (CHIP0 == CHIP_YM2612) {
-        freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2612);
+        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       } else if (CHIP1 == CHIP_YM2612) {
-        freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2612);
+        freq[CHIP1_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       }
       // Use YM2610 as YM2203
       if (CHIP0 == CHIP_YM2610) {
-        freq[0] = normalizeFreq(ym2203_clock, CHIP_YM2610);
+        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2610);
       } else if (CHIP1 == CHIP_YM2610) {
-        freq[1] = normalizeFreq(ym2203_clock, CHIP_YM2612);
+        freq[CHIP1_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       }
     }
   }
@@ -180,36 +180,36 @@ bool VGM::ready() {
   uint32_t ym2151_clock = get_ui32_at(0x30);
   if (ym2151_clock) {
     if (CHIP0 == CHIP_YM2151) {
-      freq[0] = normalizeFreq(ym2151_clock, CHIP_YM2151);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym2151_clock, CHIP_YM2151);
     }
     if (CHIP1 == CHIP_YM2151) {
-      freq[1] = normalizeFreq(ym2151_clock, CHIP_YM2151);
+      freq[CHIP1_CLOCK] = normalizeFreq(ym2151_clock, CHIP_YM2151);
     }
   }
 
   uint32_t ym3812_clock = get_ui32_at(0x50);
   if (ym3812_clock) {
     if (CHIP0 == CHIP_YM3812) {
-      freq[0] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
     if (CHIP1 == CHIP_YM3812) {
-      freq[1] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
     if (CHIP0 == CHIP_YMF262) {
-      freq[0] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
     if (CHIP0 == CHIP_YMF262) {
-      freq[1] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
   }
 
   uint32_t ymf262_clock = get_ui32_at(0x5c);
   if (ymf262_clock) {
     if (CHIP0 == CHIP_YMF262) {
-      freq[0] = normalizeFreq(ymf262_clock, CHIP_YMF262);
+      freq[CHIP0_CLOCK] = normalizeFreq(ymf262_clock, CHIP_YMF262);
     }
     if (CHIP1 == CHIP_YMF262) {
-      freq[1] = normalizeFreq(ymf262_clock, CHIP_YMF262);
+      freq[CHIP1_CLOCK] = normalizeFreq(ymf262_clock, CHIP_YMF262);
     }
   }
 
@@ -786,7 +786,7 @@ void VGM::vgmProcess() {
       break;
   }
 
-  if (_vgmDelay >= 1000) {
+  if (_vgmDelay >= 3000) {
     ets_delay_us(_vgmDelay / 1000);
     _vgmDelay = _vgmDelay % 1000;
     const uint64_t vgmTime = _vgmSamples * 22.67573696145125f;
@@ -835,7 +835,8 @@ bool VGM::XGMReady() {
   for (int i = 0; i < 63; i++) {
     XGMSampleAddressTable.push_back(get_ui16() * 256 + 0x104);
     XGMSampleSizeTable.push_back(get_ui16() * 256);
-    // Serial.printf("Sample Address: 0x%x, Size: 0x%x\n", XGMSampleAddressTable[i] << 8, XGMSampleSizeTable[i] << 8);
+    // Serial.printf("Sample Address: 0x%x, Size: 0x%x\n",
+    // XGMSampleAddressTable[i] << 8, XGMSampleSizeTable[i] << 8);
   }
 
   // Sample data block size = SLEN
@@ -890,19 +891,19 @@ bool VGM::XGMReady() {
   String chip[2] = {"", ""};
   int c = 0;
 
-  if (freq[0] != 0) {
+  if (freq[0] != SI5351_UNDEFINED) {
     char buf[7];
     dtostrf((double)freq[0] / 1000000.0, 1, 4, buf);
     chip[c++] = CHIP_LABEL[CHIP0] + " @ " + String(buf).substring(0, 5) + " MHz";
   }
 
-  if (freq[1] != 0) {
+  if (freq[1] != SI5351_UNDEFINED) {
     char buf[7];
     dtostrf((double)freq[1] / 1000000.0, 1, 4, buf);
     chip[c++] = CHIP_LABEL[CHIP1] + " @ " + String(buf).substring(0, 5) + " MHz";
   }
 
-  if (c < 2 && freq[2] != 0) {
+  if (c < 2 && freq[2] != SI5351_UNDEFINED) {
     char buf[7];
     dtostrf((double)freq[2] / 1000000.0, 1, 4, buf);
     chip[c++] = CHIP_LABEL[CHIP2] + " @ " + String(buf).substring(0, 5) + " MHz";

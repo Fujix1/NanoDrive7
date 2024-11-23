@@ -2,12 +2,16 @@
 #define COMMON_H
 
 #define ND_VERSION "6"
-#define ND_FIRM "1.5"
+#define ND_FIRM "1.8"
 
 // Current hardware setup
 #define CHIP0 CHIP_YM2203_0
 #define CHIP1 CHIP_YM2203_1
 #define CHIP2 CHIP_NONE
+
+#define CHIP0_CLOCK CLK_0
+#define CHIP1_CLOCK CLK_1
+#define CHIP2_CLOCK CLK_0
 
 // LCD
 #define LCD_W 170
