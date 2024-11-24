@@ -73,7 +73,7 @@ void setup() {
   lcd.setFont(&fonts::Font2);
   lcd.println("NANO DRIVE 6");
   lcd.println("2024 Fujix@e2j.net");
-  lcd.printf("Firmware: 1.7\n\n");
+  lcd.printf("Firmware: Dev 1.8\n\n");
 
   lcd.printf("Open Font Render by takkaO\n");
   lcd.printf("LovyganGFX by lovyan\n");

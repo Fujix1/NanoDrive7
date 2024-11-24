@@ -4,7 +4,7 @@
 // Current hardware setup
 #define CHIP0 CHIP_YM2203_0
 #define CHIP1 CHIP_YM2203_1
-#define CHIP2 CHIP_NONE
+#define CHIP2 CHIP_YM3812
 
 #define CHIP0_CLOCK CLK_0
 #define CHIP1_CLOCK CLK_1

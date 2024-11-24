@@ -195,6 +195,9 @@ bool VGM::ready() {
     if (CHIP1 == CHIP_YM3812) {
       freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
+    if (CHIP2 == CHIP_YM3812) {
+      freq[CHIP2_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+    }
     if (CHIP0 == CHIP_YMF262) {
       freq[CHIP0_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
@@ -672,7 +675,7 @@ void VGM::vgmProcess() {
     case 0x5A:  // YM3812
       reg = get_ui8();
       dat = get_ui8();
-      FM.setRegisterOPL3(0, reg, dat, 1);
+      FM.setRegisterOPL3(0, reg, dat, chipSlot[CHIP_YM3812]);
       break;
 
     case 0x5E:  // YMF262 Port 0
