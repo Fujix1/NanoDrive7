@@ -1,7 +1,33 @@
 /**
  * Nano Drive 6
- * 2024 Fujix
+ * 2024 (C) Fujix
+ * e2j.net
  *
+ * This software uses the following libraries:
+ *
+ *  Open Font Render
+ *  URL: https://github.com/takkaO/OpenFontRender
+ *  Author: takkaO
+ *  License: FTL
+ *  Portions of this software are copyright © The FreeTypeProject (www.freetype.org). All rights reserved.
+ *
+ *  LovyanGFX
+ *  URL: https://github.com/lovyan03/LovyanGFX
+ *  Author: lovyan03
+ *  License: FreeBSD
+ *
+ *  PNGdec
+ *  URL: https://github.com/bitbank2/PNGdec
+ *  Author: Larry Bank
+ *  License: Apache-2.0
+ *
+ *
+ * This software references code from the "SDGK" project for the XGM format.
+ * Original project URL: https://github.com/Stephane-D/SGDK
+ * Author: Stephane Dallongeville
+ *
+ * The referenced code is licensed under the MIT License.
+ * Please ensure compliance with the original license terms.
  */
 
 #include "NJU72341.h"
@@ -23,46 +49,11 @@ void setup() {
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
 
-  Serial.begin(115200);
+  Serial.begin(2000000);
   Serial.printf("Heap - %'d Bytes free\n", ESP.getFreeHeap());
   Serial.printf("Flash - %'d Bytes at %'d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
   Serial.printf("PSRAM - Total %'d, Free %'d\n", ESP.getPsramSize(), ESP.getFreePsram());
 
-  /*
-    pinMode(A0, OUTPUT);
-    pinMode(A1, OUTPUT);
-    pinMode(WR, OUTPUT);
-    pinMode(CS0, OUTPUT);
-    pinMode(CS1, OUTPUT);
-    pinMode(CS2, OUTPUT);
-    pinMode(IC, OUTPUT);
-    pinMode(D0, OUTPUT);
-    pinMode(D1, OUTPUT);
-    pinMode(D2, OUTPUT);
-    pinMode(D3, OUTPUT);
-    pinMode(D4, OUTPUT);
-    pinMode(D5, OUTPUT);
-    pinMode(D6, OUTPUT);
-    pinMode(D7, OUTPUT);
-    digitalWrite(D0, HIGH);
-    digitalWrite(D1, HIGH);
-    digitalWrite(D2, HIGH);
-    digitalWrite(D3, HIGH);
-    digitalWrite(D4, HIGH);
-    digitalWrite(D5, HIGH);
-    digitalWrite(D6, HIGH);
-    digitalWrite(D7, HIGH);
-    A1_HIGH;
-    A0_HIGH;
-    WR_HIGH;
-    CS0_HIGH;
-    CS1_HIGH;
-    CS2_HIGH;
-    IC_HIGH;
-
-    while (1) {
-    }
-  */
   disableCore0WDT();  // ウォッチドッグ0無効化
 
   // ディスプレイ初期化
@@ -72,12 +63,8 @@ void setup() {
 
   lcd.setFont(&fonts::Font2);
   lcd.println("NANO DRIVE 6");
-  lcd.println("2024 Fujix@e2j.net");
-  lcd.printf("Firmware: Dev 1.8\n\n");
-
-  lcd.printf("Open Font Render by takkaO\n");
-  lcd.printf("LovyganGFX by lovyan\n");
-  lcd.printf("PNGdec by Larry Bank\n");
+  lcd.println("2024, 2025 Fujix@e2j.net");
+  lcd.printf("Firmware: 1.84\n\n");
 
   // PSRAM 初期化確認
   if (psramInit()) {
@@ -90,9 +77,9 @@ void setup() {
   // ユーザ設定
   if (ndConfig.init()) {
     ndConfig.loadCfg();
-    lcd.printf("User settings restored.\n");
+    // lcd.printf("User settings restored.\n");
   } else {
-    lcd.printf("ERROR: SPIFFS initialization failed.\n");
+    Serial.printf("ERROR: SPIFFS initialization failed.\n");
     exit;
   }
 
@@ -106,6 +93,13 @@ void setup() {
   SI5351.setFreq(SI5351_4000, 1);
   SI5351.enableOutputs(true);
 
+  // VGM用GPIO初期化
+  // Lovyanの初期化で上書きされるので、initDisp();の後に呼び出す
+  FM.begin();
+  FM.reset();
+
+  // 動作切り替え
+  // if (ndConfig.currentMode == MODE_PLAYER) {
   // SD読み込み
   if (ndFile.init() == true) {
     ndFile.listDir("/");
@@ -118,17 +112,6 @@ void setup() {
     lcd.printf("ERROR: No file to play on the SD.\n");
     exit;
   }
-
-  // VGM用GPIO初期化
-  // Lovyanの初期化で上書きされるので、initDisp();の後に呼び出す
-  FM.begin();
-  FM.reset();
-
-  // 入力有効化
-  input.init();
-  input.setEnabled(true);
-
-  cfgWindow.init();
 
   // 読み込み履歴復元
   u16_t lastDirIndex = 0, lastTrackIndex = 0;
@@ -146,6 +129,16 @@ void setup() {
     default:
       ndFile.dirPlay(0);
   }
+  /*} else {
+    lcd.printf("Entering Serial Mode.\n");
+  }
+  */
+
+  // 入力有効化
+  input.init();
+  input.setEnabled(true);
+
+  cfgWindow.init();
 
   Serial.printf("Heap - %'d Bytes free\n", ESP.getFreeHeap());
   Serial.printf("Flash - %'d Bytes at %'d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
@@ -154,12 +147,14 @@ void setup() {
 
 void loop() {
   while (1) {
-    input.inputHandler();
     if (vgm.vgmLoaded) {
       vgm.vgmProcess();
+    } else if (vgm.xgmLoaded) {
+      if (vgm.XGMVersion == 1)
+        vgm.xgmProcess();
+      else
+        vgm.xgm2Process();
     }
-    if (vgm.xgmLoaded) {
-      vgm.xgmProcess();
-    }
+    input.inputHandler();
   }
 }
