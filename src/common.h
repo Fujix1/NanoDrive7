@@ -6,6 +6,9 @@
 #define CHIP1 CHIP_YM2203_1
 #define CHIP2 CHIP_YM3812
 
+#define USE_YM2203
+#define USE_YM2413
+
 #define CHIP0_CLOCK CLK_0
 #define CHIP1_CLOCK CLK_1
 #define CHIP2_CLOCK CLK_0
