@@ -53,6 +53,11 @@ bool NDFile::init() {
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
   lcd.printf("- Size: %llu MB\n", cardSize);
   vTaskDelay(100);
+
+  // メモリ確保
+  psramInit();  // ALWAYS CALL THIS BEFORE USING THE PSRAM
+  data = (u8_t *)ps_calloc(MAX_FILE_SIZE, sizeof(u8_t));
+
   return true;
 }
 
@@ -101,7 +106,6 @@ void NDFile::listDir(const char *dirname) {
     dirName = root.getNextFileName(&isDir);
   }
   root.close();
-  _numDirs = dirs.size();
 
   // 各ディレクトリ内のファイル名取得
   files.resize(dirs.size());
@@ -145,28 +149,18 @@ bool NDFile::readFile(String path) {
   if (!_vgmFile) {
     lcd.printf("ERROR: Failed to open file.\n%s", path.c_str());
     _vgmFile.close();
-    vgm.size = 0;
     return false;
   }
 
   if (_vgmFile.size() > MAX_FILE_SIZE) {
     lcd.printf("ERROR: The file is too large.\nMax file size is %d.\n%s", MAX_FILE_SIZE, path.c_str());
     _vgmFile.close();
-    vgm.size = 0;
     return false;
   }
-  vgm.size = _vgmFile.size();
-  _vgmFile.read(vgm.vgmData, vgm.size);
+
+  _vgmFile.read(data, _vgmFile.size());
   Serial.printf("File name: %s\n", path.c_str());
   _vgmFile.close();
-
-  // check file
-  String ext = path.substring(path.length() - 4);
-  if (ext.equalsIgnoreCase(".vgm")) {
-    vgm.format = FORMAT_VGM;
-  } else if (ext.equalsIgnoreCase(".xgm")) {
-    vgm.format = FORMAT_XGM;
-  }
 
   return true;
 }
@@ -186,7 +180,7 @@ bool NDFile::filePlay(int count) {
 // 戻り値: 成功/不成功
 bool NDFile::dirPlay(int count) {
   currentFile = 0;
-  currentDir = mod(currentDir + count, _numDirs);
+  currentDir = mod(currentDir + count, dirs.size());
   ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getFolderAttenuation(dirs[currentDir]));
 }
@@ -216,26 +210,17 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
   nju72341.resetFadeout();
   FM.reset();
 
-  // stop sound output off SN76489
-  FM.write(0x9f, 1, SI5351_1500);
-  FM.write(0xbf, 1, SI5351_1500);
-  FM.write(0xdf, 1, SI5351_1500);
-  FM.write(0xff, 1, SI5351_1500);
-
-  FM.write(0x9f, 2, SI5351_1500);
-  FM.write(0xbf, 2, SI5351_1500);
-  FM.write(0xdf, 2, SI5351_1500);
-  FM.write(0xff, 2, SI5351_1500);
-
   String st = dirs[d] + "/" + files[d][f];
 
   bool result = false;
 
   if (readFile(st)) {
-    if (vgm.format == FORMAT_VGM && vgm.ready()) {
-      result = true;
-    } else if (vgm.format == FORMAT_XGM && vgm.XGMReady()) {
-      result = true;
+    // check file type
+    String ext = st.substring(st.length() - 4);
+    if (ext.equalsIgnoreCase(".vgm")) {
+      result = vgm.ready();
+    } else if (ext.equalsIgnoreCase(".xgm")) {
+      result = vgm.XGMReady();
     }
   }
   nju72341.reset(att);
@@ -275,6 +260,28 @@ uint8_t NDFile::getFolderAttenuation(String path) {
   }
 
   return 0;
+}
+
+// data access
+// 8 bit 返す
+u8_t NDFile::get_ui8() { return data[pos++]; }
+// 16 bit 返す
+u16_t NDFile::get_ui16() { return get_ui8() + (get_ui8() << 8); }
+// 24 bit 返す
+u32_t NDFile::get_ui24() { return get_ui8() + (get_ui8() << 8) + (get_ui8() << 16); }
+// 32 bit 返す
+u32_t NDFile::get_ui32() { return get_ui8() + (get_ui8() << 8) + (get_ui8() << 16) + (get_ui8() << 24); }
+// 指定場所の 8 bit 返す
+u8_t NDFile::get_ui8_at(uint32_t p) { return data[p]; }
+// 指定場所の 16 bit 返す
+u16_t NDFile::get_ui16_at(uint32_t p) { return (u32_t(data[p])) + (u32_t(data[p + 1]) << 8); }
+// 指定場所の 24 bit 返す
+u32_t NDFile::get_ui24_at(uint32_t p) {
+  return (u32_t(data[p])) + (u32_t(data[p + 1]) << 8) + (u32_t(data[p + 2]) << 16);
+}
+// 指定場所の 32 bit 返す
+u32_t NDFile::get_ui32_at(uint32_t p) {
+  return (u32_t(data[p])) + (u32_t(data[p + 1]) << 8) + (u32_t(data[p + 2]) << 16) + (u32_t(data[p + 3]) << 24);
 }
 
 NDFile ndFile = NDFile();
