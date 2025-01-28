@@ -8,6 +8,7 @@
 
 #define USE_YM2203
 #define USE_YM2413
+#define USE_AY8910
 
 #define CHIP0_CLOCK CLK_0
 #define CHIP1_CLOCK CLK_1
