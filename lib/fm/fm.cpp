@@ -347,7 +347,58 @@ void FMChip::setRegisterOPM(byte addr, byte data, uint8_t chipno = 0) {
       CS2_HIGH;
       break;
   }
+  // ets_delay_us(12);
   ets_delay_us(12);
+}
+
+// 　OPLL用レジスタ設定
+void FMChip::setRegisterOPLL(byte addr, byte data, uint8_t chipno = 0) {
+  dedic_gpio_bundle_write(dataBus, 0xff, addr);
+  A0_LOW;
+  switch (chipno) {
+    case 0:
+      CS0_LOW;
+      CS1_HIGH;
+      CS2_HIGH;
+      break;
+    case 1:
+      CS0_HIGH;
+      CS1_LOW;
+      CS2_HIGH;
+      break;
+    case 2:
+      CS0_HIGH;
+      CS1_HIGH;
+      CS2_LOW;
+      break;
+  }
+  ets_delay_us(5);
+  WR_LOW;
+  ets_delay_us(5);
+  WR_HIGH;
+  A0_HIGH;
+
+  ets_delay_us(10);
+
+  // data
+  dedic_gpio_bundle_write(dataBus, 0xff, data);
+  ets_delay_us(5);
+  WR_LOW;
+  ets_delay_us(5);
+  WR_HIGH;
+
+  switch (chipno) {
+    case 0:
+      CS0_HIGH;
+      break;
+    case 1:
+      CS1_HIGH;
+      break;
+    case 2:
+      CS2_HIGH;
+      break;
+  }
+  ets_delay_us(20);
 }
 
 void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {

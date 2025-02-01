@@ -438,7 +438,7 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 0.2646;
         sprPngResized.fillSprite(TFT_BLACK);
-      } else if (sprPng.width() > sprPng.height()) {
+      } else if (sprPng.width() >= sprPng.height()) {
         // 横長
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 127.0 / png.getHeight();

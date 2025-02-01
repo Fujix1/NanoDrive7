@@ -632,7 +632,7 @@ void VGM::vgmProcessMain() {
     case 0x51:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPM(reg, dat, 0);
+      FM.setRegisterOPLL(reg, dat, 1);
       break;
 #endif
 
@@ -659,13 +659,15 @@ void VGM::vgmProcessMain() {
       break;
 #endif
 
-#ifdef USE_YM2203
+#ifdef USE_YM2203_0
     case 0x55:  // YM2203_0
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegister(reg, dat, 0);
       break;
+#endif
 
+#ifdef USE_YM2203_1
     case 0xA5:  // YM2203_1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
