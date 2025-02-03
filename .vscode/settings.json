@@ -14,6 +14,8 @@
     "system_error": "cpp",
     "memory": "cpp",
     "random": "cpp",
-    "optional": "cpp"
+    "optional": "cpp",
+    "atomic": "cpp",
+    "cstdint": "cpp"
   }
 }

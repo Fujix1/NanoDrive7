@@ -586,8 +586,9 @@ void VGM::vgmProcess() {
   }
 
   _vgmRealSamples = _vgmSamples;
-  _vgmWaitUntil = _vgmStart + _vgmRealSamples * 22.67573696145125;
-  while (_vgmWaitUntil - 22 > micros()) {
+  _vgmWaitUntil = _vgmStart + (unsigned long)(_vgmRealSamples * 22.67573696145125);
+
+  while ((long)(_vgmWaitUntil - micros()) > 22) {  // オーバーフロー対策
     ets_delay_us(22);
   }
 }
@@ -993,11 +994,11 @@ void VGM::xgmProcess() {
   }
 
   _xgmFrame = _xgmYMSNFrame;
-  _xgmWaitUntil = _xgmStartTick + _xgmYMSNFrame * 16666;  // 60Hz
-  _vgmSamples = _xgmYMSNFrame * 735;                      // 44100 / 60
+  _xgmWaitUntil = _xgmStartTick + (unsigned long)(_xgmYMSNFrame * 16666);  // 60Hz
+  _vgmSamples = _xgmYMSNFrame * 735;                                       // 44100 / 60
 
   // PCM Stream mixing
-  while (_xgmWaitUntil - XGM1_PCM_DELAY > micros()) {
+  while ((long)(_xgmWaitUntil - micros()) > XGM1_PCM_DELAY) {
     _xgm1ProcessPCM();
     ets_delay_us(XGM1_PCM_DELAY);
   }
@@ -1113,10 +1114,10 @@ void VGM::xgm2Process() {
   }
 
   _xgmFrame = (_xgmPSGFrame < _xgmYMFrame) ? _xgmPSGFrame : _xgmYMFrame;
-  _xgmWaitUntil = _xgmStartTick + _xgmFrame * 16666;  // 60Hz
-  _vgmSamples = _xgmFrame * 735;                      // 44100 / 60
+  _xgmWaitUntil = _xgmStartTick + (unsigned long)(_xgmFrame * 16666);  // 60Hz
+  _vgmSamples = _xgmFrame * 735;                                       // 44100 / 60
 
-  while (_xgmWaitUntil - XGM2_PCM_DELAY >= micros()) {
+  while ((long)(_xgmWaitUntil - micros()) >= XGM2_PCM_DELAY) {
     _xgm2ProcessPCM();
     ets_delay_us(XGM2_PCM_DELAY);
   }
