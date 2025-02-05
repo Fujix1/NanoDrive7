@@ -111,12 +111,12 @@ class VGM {
 
   std::vector<si5351Freq_t> freq = {SI5351_UNDEFINED, SI5351_UNDEFINED};
 
-  int8_t chipSlot[11];
+  s8_t chipSlot[11];
 
   bool vgmLoaded = false;
   bool xgmLoaded = false;
 
-  uint8_t XGMVersion;  // XGM バージョン 1 or 2
+  u8_t XGMVersion;  // XGM バージョン 1 or 2
   std::vector<u32_t> XGMSampleAddressTable;
   std::vector<u32_t> XGMSampleSizeTable;
 
@@ -144,7 +144,7 @@ class VGM {
   u64_t _vgmStart;
   u64_t _vgmWaitUntil;
   u32_t _pcmpos = 0;
-  int64_t micros64();
+  s64_t micros64();
 
   u32_t _xgmSamplePos[XGM1_MAX_PCM_CH];
   u8_t _xgmSampleId[XGM1_MAX_PCM_CH];

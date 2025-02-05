@@ -1678,12 +1678,12 @@ void VGM::endProcedure() {
   }
 }
 
-uint64_t VGM::getCurrentTime() {
+u64_t VGM::getCurrentTime() {
   if (_vgmSamples >= 264600000) _vgmSamples = 0;
   return _vgmSamples / 44100;
 }
 
-int64_t VGM::micros64() {
+s64_t VGM::micros64() {
   //
   return esp_timer_get_time();
 }
