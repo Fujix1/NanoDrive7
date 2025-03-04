@@ -45,6 +45,7 @@ VGM::VGM() {
 //---------------------------------------------------------------------
 // vgm 再生準備
 bool VGM::ready() {
+  Serial.println("VGM::ready");
   vgmLoaded = false;
   xgmLoaded = false;
   ndFile.pos = 0;
@@ -83,6 +84,8 @@ bool VGM::ready() {
   // data offset
   dataOffset = (version >= 0x150) ? ndFile.get_ui32_at(0x34) + 0x34 : 0x40;
   ndFile.pos = dataOffset;
+
+  Serial.println("VGM::ready Setup Clocks");
 
   // Setup Clocks
   u32_t sn76489_clock = ndFile.get_ui32_at(0x0c);
@@ -221,7 +224,7 @@ bool VGM::ready() {
       freq[CHIP1_CLOCK] = normalizeFreq(ymf262_clock, CHIP_YMF262);
     }
   }
-
+  Serial.println("VGM::ready before 周波数設定");
   // 周波数設定
   if (freq[0] != SI5351_UNDEFINED) {
     SI5351.setFreq(freq[0], 0);
@@ -234,12 +237,13 @@ bool VGM::ready() {
   }
 
   SI5351.enableOutputs(true);
+  Serial.println("VGM::ready after 周波数設定");
 
   vgmLoaded = true;  // VGM 開始できる
-
   // GD3 tags
   _parseGD3(gd3Offset);
 
+  Serial.println("VGM::ready _parseGD3");
   String chip[2] = {"", ""};
   int c = 0;
 
@@ -262,10 +266,10 @@ bool VGM::ready() {
   }
 
   u32_t n = 1 + ndFile.currentFile;  // フォルダ内曲番
-
   updateDisp({gd3.trackEn, gd3.trackJp, gd3.gameEn, gd3.gameJp, gd3.systemEn, gd3.systemJp, gd3.authorEn, gd3.authorJp,
               gd3.date, chip[0], chip[1], FORMAT_LABEL[vgm.format], 0, n, ndFile.files[ndFile.currentDir].size()});
 
+  Serial.println("VGM::ready updateDisp");
   _vgmStart = micros64();
   return true;
 }
@@ -363,6 +367,7 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
     case CHIP_YM2203_0:
     case CHIP_YM2203_1: {
       switch (freq) {
+        case 1500000:     // 1.5MHz
         case 1076741824:  // デュアル 1.5MHz
         case 1075241824:  // デュアル 1.5MHz
           return SI5351_1500;
@@ -632,7 +637,7 @@ void VGM::vgmProcessMain() {
     case 0x51:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPLL(reg, dat, 1);
+      // FM.setRegisterOPLL(reg, dat, 1);
       break;
 #endif
 
@@ -640,13 +645,19 @@ void VGM::vgmProcessMain() {
     case 0x52:  // YM2612 port 0, write value dd to register aa
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setYM2612(0, reg, dat, 0);
+      if ((reg >= 0x30 && reg <= 0xB6) || reg == 0x22 || reg == 0x27 || reg == 0x28 || reg == 0x2A || reg == 0x2B) {
+        FM.setYM2612(0, reg, dat, 0);
+        break;
+      }
       break;
 
     case 0x53:  // YM2612 port 1, write value dd to register aa
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setYM2612(1, reg, dat, 0);
+      if (reg >= 0x30 && reg <= 0xB6) {
+        FM.setYM2612(1, reg, dat, 0);
+        break;
+      }
       break;
 #endif
 
@@ -655,7 +666,10 @@ void VGM::vgmProcessMain() {
     case 0xa4:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPM(reg, dat, 0);
+      if (reg != 0x10 || reg != 0x11) {  // タイマー設定は無視
+        FM.setRegisterOPM(reg, dat, 0);
+        break;
+      }
       break;
 #endif
 
@@ -679,7 +693,7 @@ void VGM::vgmProcessMain() {
     case 0x5A:  // YM3812
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPL3(0, reg, dat, 1);
+      FM.setRegister(reg, dat, 1);
       break;
 
     case 0x5E:  // YMF262 Port 0
@@ -989,7 +1003,10 @@ void VGM::xgmProcess() {
   }
 
   while (_xgmYMSNFrame <= _xgmFrame) {
-    _xgm1ProcessYMSN();
+    if (_xgm1ProcessYMSN()) {
+      endProcedure();
+      return;
+    }
   }
 
   _xgmFrame = _xgmYMSNFrame;
@@ -1025,7 +1042,7 @@ void VGM::_xgm1ProcessPCM() {
   }
 }
 
-void VGM::_xgm1ProcessYMSN() {
+bool VGM::_xgm1ProcessYMSN() {
   u8_t command = ndFile.get_ui8();
 
   switch (command) {
@@ -1090,10 +1107,11 @@ void VGM::_xgm1ProcessYMSN() {
 
     case 0x7f: {
       // End command (end of music data).
-      endProcedure();
-      return;
+      return true;
     }
   }
+
+  return false;
 }
 
 //---------------------------------------------------------------
@@ -1106,10 +1124,16 @@ void VGM::xgm2Process() {
   }
 
   while (_xgmYMFrame <= _xgmFrame) {
-    _xgm2ProcessYM();
+    if (_xgm2ProcessYM()) {
+      endProcedure();
+      return;
+    };
   }
   while (_xgmPSGFrame <= _xgmFrame) {
-    _xgm2ProcessSN();
+    if (_xgm2ProcessSN()) {
+      endProcedure();
+      return;
+    };
   }
 
   _xgmFrame = (_xgmPSGFrame < _xgmYMFrame) ? _xgmPSGFrame : _xgmYMFrame;
@@ -1151,7 +1175,14 @@ void VGM::_xgm2ProcessPCM() {
   }
 }
 
-void VGM::_xgm2ProcessYM() {
+/**
+ * @brief   XGM2 PSG 処理
+ *
+ * @return true   曲終了
+ * @return false  処理を継続
+ */
+
+bool VGM::_xgm2ProcessYM() {
   u8_t port = _getYMPort(_xgm2_ym_pos);
   u8_t channel = _getYMChannel(_xgm2_ym_pos);
   u8_t command = ndFile.get_ui8_at(_xgm2_ym_pos++);
@@ -1163,8 +1194,7 @@ void VGM::_xgm2ProcessYM() {
       u32_t loopOffset = ndFile.get_ui24_at(_xgm2_ym_pos);
       Serial.printf("0x%x - FM end/loop: offset: %x\n", _xgm2_ym_pos - _xgm2_ym_offset - 1, loopOffset);
       if (loopOffset == 0xffffff) {
-        endProcedure();
-        return;
+        return true;  // 曲終了
       } else {
         _vgmLoop++;
         _xgm2_ym_pos = _xgm2_ym_offset + loopOffset;
@@ -1403,6 +1433,8 @@ void VGM::_xgm2ProcessYM() {
       Serial.printf("Unknown XGM2 command: 0x%0x @ 0x%0x\n", command, _xgm2_ym_pos);
     }
   }
+
+  return false;
 }
 
 // XGM 2 port and channel
@@ -1473,7 +1505,13 @@ int VGM::_getYMSlot(u8_t command) {
   return -1;
 }
 
-void VGM::_xgm2ProcessSN() {
+/**
+ * @brief SN76489 command processing
+ *
+ * @return true  End of music data
+ * @return false  Continue processing
+ */
+bool VGM::_xgm2ProcessSN() {
   u8_t channel = _getChannel(_xgm2_psg_pos);
   u8_t command = ndFile.get_ui8_at(_xgm2_psg_pos++);
   u8_t reg;
@@ -1486,7 +1524,7 @@ void VGM::_xgm2ProcessSN() {
       u32_t loopOffset = ndFile.get_ui24_at(_xgm2_psg_pos);
       // Serial.printf("0x%x - PSG end/loop: offset: %x\n", _xgm2_psg_pos - _xgm2_psg_offset - 1, loopOffset);
       if (loopOffset == 0xFFFFFF) {
-        xgmLoaded = false;
+        return true;  // 処理終了
       } else {
         _xgm2_psg_pos = _xgm2_psg_offset + loopOffset;
       }
@@ -1518,7 +1556,8 @@ void VGM::_xgm2ProcessSN() {
       delta = ((command & 4) != 0) ? -delta : delta;
       _xgmPsgState[0][channel] = delta + (_xgmPsgState[0][channel] & 0xf);
       value = (0x90 + (channel << 5)) | _xgmPsgState[0][channel];
-      // Serial.printf("0x%x - %2x: PSG ENV DELTA ch %d 0x%x\n", _xgm2_psg_pos - _xgm2_psg_offset - 1, command, channel,
+      // Serial.printf("0x%x - %2x: PSG ENV DELTA ch %d 0x%x\n", _xgm2_psg_pos - _xgm2_psg_offset - 1, command,
+      // channel,
       //              value);
       FM.writeRaw(value, 1, freq[chipSlot[CHIP_SN76489_0]]);
       break;
@@ -1573,7 +1612,8 @@ void VGM::_xgm2ProcessSN() {
         value = ((0x80 + (channel << 5)) | (lvalue & 0x0f));
       }
       FM.writeRaw(value, 1, freq[chipSlot[CHIP_SN76489_0]]);
-      // Serial.printf("0x%x - %2x: PSG_FREQ_LOW ch %d 0x%x\n", _xgm2_psg_pos - _xgm2_psg_offset - 2, command, channel,
+      // Serial.printf("0x%x - %2x: PSG_FREQ_LOW ch %d 0x%x\n", _xgm2_psg_pos - _xgm2_psg_offset - 2, command,
+      // channel,
       //               value);
 
       break;
@@ -1626,6 +1666,7 @@ void VGM::_xgm2ProcessSN() {
       break;
     }
   }
+  return false;
 }
 
 u8_t VGM::_getChannel(u32_t pos) {
@@ -1659,6 +1700,9 @@ u8_t VGM::_getChannel(u32_t pos) {
 //---------------------------------------------------------------
 // 曲終了時の処理
 void VGM::endProcedure() {
+  xgmLoaded = false;
+  vgmLoaded = false;
+
   switch (ndConfig.get(CFG_REPEAT)) {
     case REPEAT_ONE: {
       ndFile.filePlay(0);

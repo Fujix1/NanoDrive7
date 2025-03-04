@@ -1,14 +1,35 @@
+/*
+  A0 IO18
+  A1 IO8
+
+  D0 IO9
+  D1 IO10
+  D2 IO11
+  D3 IO12
+  D4 IO13
+  D5 IO14
+  D6 IO15
+  D7 IO16
+  IC IO48
+
+  IO38 CS0
+  IO39 CS1
+  IO40 WR
+  IO43 CS2 (TXD0)
+*/
+
 #ifndef COMMON_H
 #define COMMON_H
 
 // Current hardware setup
 #define CHIP0 CHIP_YM2203_0
-#define CHIP1 CHIP_YM2413
+#define CHIP1 CHIP_YM3812
 #define CHIP2 CHIP_NONE
 
 #define USE_YM2203_0
 #define USE_YM2413
 #define USE_AY8910
+#define USE_YM3812
 
 #define CHIP0_CLOCK CLK_0
 #define CHIP1_CLOCK CLK_1

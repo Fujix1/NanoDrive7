@@ -161,7 +161,7 @@ bool NDFile::readFile(String path) {
   _vgmFile.read(data, _vgmFile.size());
   Serial.printf("File name: %s\n", path.c_str());
   _vgmFile.close();
-
+  Serial.printf("after: _vgmFile.close();\n");
   return true;
 }
 
@@ -214,7 +214,9 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
 
   bool result = false;
 
+  Serial.printf("before readFile\n");
   if (readFile(st)) {
+    Serial.printf("after: readFile();\n");
     // check file type
     String ext = st.substring(st.length() - 4);
     if (ext.equalsIgnoreCase(".vgm")) {
@@ -223,10 +225,13 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
       result = vgm.XGMReady();
     }
   }
+  Serial.printf("before nju72341.reset\n");
   nju72341.reset(att);
+  Serial.printf("before xSemaphoreGive\n");
   xSemaphoreGive(spFileOpen);
+  Serial.printf("after xSemaphoreGive\n");
   nju72341.unmute();
-
+  Serial.printf("after unmute\n");
   return result;
 }
 

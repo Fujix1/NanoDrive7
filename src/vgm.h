@@ -180,12 +180,12 @@ class VGM {
   void endProcedure();
 
   // xgm1
-  void _xgm1ProcessYMSN();
+  bool _xgm1ProcessYMSN();
   void _xgm1ProcessPCM();
 
   // xgm2
-  void _xgm2ProcessYM();
-  void _xgm2ProcessSN();
+  bool _xgm2ProcessYM();
+  bool _xgm2ProcessSN();
   void _xgm2ProcessPCM();
 
   int _getYMPort(u32_t pos);

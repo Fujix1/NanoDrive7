@@ -364,7 +364,7 @@ void FMChip::setRegisterOPLL(byte addr, byte data, uint8_t chipno = 0) {
   WR_HIGH;
   A0_HIGH;
 
-  ets_delay_us(10);
+  ets_delay_us(20);
 
   // data
   dedic_gpio_bundle_write(dataBus, 0xff, data);
@@ -384,7 +384,7 @@ void FMChip::setRegisterOPLL(byte addr, byte data, uint8_t chipno = 0) {
       CS2_HIGH;
       break;
   }
-  ets_delay_us(20);
+  ets_delay_us(50);
 }
 
 void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {

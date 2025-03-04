@@ -8,10 +8,9 @@
 #define FADEOUT_STEPS 50
 
 // Aカーブの音量マップ
-static const uint8_t NJU72341_db[FADEOUT_STEPS] = {
-    0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  2,  2,  2,  3,  3,
-    4,  5,  5,  6,  7,  8,  9,  11, 12, 13, 15, 17, 18, 20, 22, 24, 26,
-    28, 30, 32, 35, 38, 41, 44, 48, 52, 57, 62, 68, 74, 80, 88, 96};
+static const uint8_t NJU72341_db[FADEOUT_STEPS] = {0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  2,  2,  2,  3,  3,
+                                                   4,  5,  5,  6,  7,  8,  9,  11, 12, 13, 15, 17, 18, 20, 22, 24, 26,
+                                                   28, 30, 32, 35, 38, 41, 44, 48, 52, 57, 62, 68, 74, 80, 88, 96};
 
 static TimerHandle_t hFadeOutTimer;  // フェードアウト用タイマー
 static u32_t _fadeOutStartMS;
@@ -32,7 +31,7 @@ static void fadeOutTimerHandler(void* param) {
 }
 
 void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
-  Wire.begin(I2C_SDA, I2C_SCL, 600000);
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
 
   if (NJU72342) {
     _slaveAddress = NJU72342_ADDR;
@@ -58,9 +57,7 @@ void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
     _fadeOutDuration = fadeOutDuration;
   }
 
-  hFadeOutTimer =
-      xTimerCreate("FADEOUT_TIMER", _fadeOutDuration / FADEOUT_STEPS, pdTRUE,
-                   NULL, fadeOutTimerHandler);
+  hFadeOutTimer = xTimerCreate("FADEOUT_TIMER", _fadeOutDuration / FADEOUT_STEPS, pdTRUE, NULL, fadeOutTimerHandler);
 }
 
 void NJU72341::setFadeoutDuration(uint16_t fadeOutDuration) {

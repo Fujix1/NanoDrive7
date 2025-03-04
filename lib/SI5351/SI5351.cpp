@@ -20,7 +20,7 @@ void SI5351_cls::write8(uint8_t reg, uint8_t value) {
 
 void SI5351_cls::begin(void) {
   /* Initialise I2C */
-  Wire.begin(18, 8, 100000);
+  // Wire.begin(18, 8, 100000);
 
   /* Disable all outputs setting CLKx_DIS high */
   write8(SI5351_REGISTER_3_OUTPUT_ENABLE_CONTROL, 0xFF);

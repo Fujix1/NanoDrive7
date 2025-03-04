@@ -16,6 +16,7 @@
     "random": "cpp",
     "optional": "cpp",
     "atomic": "cpp",
-    "cstdint": "cpp"
+    "cstdint": "cpp",
+    "functional": "cpp"
   }
 }
