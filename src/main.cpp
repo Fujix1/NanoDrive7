@@ -77,7 +77,7 @@ void setup() {
   // ユーザ設定
   if (ndConfig.init()) {
     ndConfig.loadCfg();
-    // lcd.printf("User settings restored.\n");
+    lcd.printf("User settings restored.\n");
   } else {
     lcd.printf("ERROR: CONFIG INIT.\n");
     Serial.printf("ERROR: SPIFFS initialization failed.\n");
@@ -87,14 +87,12 @@ void setup() {
   // I2C機器初期化
   // NJU72341/NJU72342 初期化
   nju72341.init(ndConfig.get(CFG_FADEOUT), false);
-  lcd.printf("Volume IC init.\n");
 
   // SI5351 初期化
   SI5351.begin();
   SI5351.setFreq(SI5351_4000, 0);
   SI5351.setFreq(SI5351_4000, 1);
   SI5351.enableOutputs(true);
-  lcd.printf("SI5351 init.\n");
 
   // VGM用GPIO初期化
   // Lovyanの初期化で上書きされるので、initDisp();の後に呼び出す
@@ -121,18 +119,17 @@ void setup() {
   u32_t history = ndConfig.loadHistory();
   lastDirIndex = history & 0xffff;
   lastTrackIndex = (history & 0xffff0000) >> 16;
-  /*
-    switch (ndConfig.get(CFG_HISTORY)) {
-      case HISTORY_FOLDER:
-        ndFile.dirPlay(lastDirIndex);
-        break;
-      case HISTORY_FILE:
-        ndFile.play(lastDirIndex, lastTrackIndex);
-        break;
-      default:
-        ndFile.dirPlay(0);
-    }*/
-  ndFile.dirPlay(0);
+
+  switch (ndConfig.get(CFG_HISTORY)) {
+    case HISTORY_FOLDER:
+      ndFile.dirPlay(lastDirIndex);
+      break;
+    case HISTORY_FILE:
+      ndFile.play(lastDirIndex, lastTrackIndex);
+      break;
+    default:
+      ndFile.dirPlay(0);
+  }
   /*} else {
     lcd.printf("Entering Serial Mode.\n");
   }

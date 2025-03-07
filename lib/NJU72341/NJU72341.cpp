@@ -31,7 +31,7 @@ static void fadeOutTimerHandler(void* param) {
 }
 
 void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
-  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Wire.begin(I2C_SDA, I2C_SCL, 600000);
 
   if (NJU72342) {
     _slaveAddress = NJU72342_ADDR;

@@ -224,6 +224,7 @@ bool VGM::ready() {
       freq[CHIP1_CLOCK] = normalizeFreq(ymf262_clock, CHIP_YMF262);
     }
   }
+
   Serial.println("VGM::ready before 周波数設定");
   // 周波数設定
   if (freq[0] != SI5351_UNDEFINED) {
@@ -637,7 +638,7 @@ void VGM::vgmProcessMain() {
     case 0x51:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      // FM.setRegisterOPLL(reg, dat, 1);
+      FM.setRegisterOPLL(reg, dat, 1);
       break;
 #endif
 
@@ -696,14 +697,15 @@ void VGM::vgmProcessMain() {
       FM.setRegister(reg, dat, 1);
       break;
 
+#endif
+
+#ifdef USE_YMF262
+    case 0x5A:  // YM3812
     case 0x5E:  // YMF262 Port 0
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegisterOPL3(0, reg, dat, 1);
       break;
-#endif
-
-#ifdef USE_YMF262
     case 0x5F:  // YMF262 Port 1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
