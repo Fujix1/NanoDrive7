@@ -45,7 +45,6 @@ VGM::VGM() {
 //---------------------------------------------------------------------
 // vgm 再生準備
 bool VGM::ready() {
-  Serial.println("VGM::ready");
   vgmLoaded = false;
   xgmLoaded = false;
   ndFile.pos = 0;
@@ -84,8 +83,6 @@ bool VGM::ready() {
   // data offset
   dataOffset = (version >= 0x150) ? ndFile.get_ui32_at(0x34) + 0x34 : 0x40;
   ndFile.pos = dataOffset;
-
-  Serial.println("VGM::ready Setup Clocks");
 
   // Setup Clocks
   u32_t sn76489_clock = ndFile.get_ui32_at(0x0c);
@@ -225,7 +222,6 @@ bool VGM::ready() {
     }
   }
 
-  Serial.println("VGM::ready before 周波数設定");
   // 周波数設定
   if (freq[0] != SI5351_UNDEFINED) {
     SI5351.setFreq(freq[0], 0);
@@ -238,13 +234,11 @@ bool VGM::ready() {
   }
 
   SI5351.enableOutputs(true);
-  Serial.println("VGM::ready after 周波数設定");
 
   vgmLoaded = true;  // VGM 開始できる
   // GD3 tags
   _parseGD3(gd3Offset);
 
-  Serial.println("VGM::ready _parseGD3");
   String chip[2] = {"", ""};
   int c = 0;
 
@@ -270,7 +264,6 @@ bool VGM::ready() {
   updateDisp({gd3.trackEn, gd3.trackJp, gd3.gameEn, gd3.gameJp, gd3.systemEn, gd3.systemJp, gd3.authorEn, gd3.authorJp,
               gd3.date, chip[0], chip[1], FORMAT_LABEL[vgm.format], 0, n, ndFile.files[ndFile.currentDir].size()});
 
-  Serial.println("VGM::ready updateDisp");
   _vgmStart = micros64();
   return true;
 }
@@ -591,7 +584,7 @@ void VGM::vgmProcess() {
   }
 
   _vgmRealSamples = _vgmSamples;
-  _vgmWaitUntil = _vgmStart + (unsigned long)(_vgmRealSamples * 22.67573696145125);
+  _vgmWaitUntil = _vgmStart + _vgmRealSamples * 22.67573696145125;
 
   while (_vgmWaitUntil - 22 > micros64()) {
     ets_delay_us(22);
@@ -648,7 +641,6 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       if ((reg >= 0x30 && reg <= 0xB6) || reg == 0x22 || reg == 0x27 || reg == 0x28 || reg == 0x2A || reg == 0x2B) {
         FM.setYM2612(0, reg, dat, 0);
-        break;
       }
       break;
 
@@ -657,7 +649,6 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       if (reg >= 0x30 && reg <= 0xB6) {
         FM.setYM2612(1, reg, dat, 0);
-        break;
       }
       break;
 #endif
@@ -669,7 +660,6 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       if (reg != 0x10 || reg != 0x11) {  // タイマー設定は無視
         FM.setRegisterOPM(reg, dat, 0);
-        break;
       }
       break;
 #endif
@@ -785,7 +775,6 @@ void VGM::vgmProcessMain() {
       break;
     case 0xe0:
       _pcmpos = 0x47 + ndFile.get_ui32();
-      //_vgmSamples++;
       break;
     default:
       ESP_LOGI("Unknown VGM Command: %0.2X\n", command);

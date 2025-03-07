@@ -4,6 +4,7 @@
 
 #include "disp.h"
 #include "file.h"
+#include "serialman.h"
 
 void inputTask(void *param) {
   while (1) {
@@ -13,10 +14,19 @@ void inputTask(void *param) {
   }
 }
 
-void serialCheckerTask(void *param) {
+void serialCheckerTask_(void *param) {
   while (1) {
-    if (Serial.available() > 0) {
-      char data = Serial.read();
+    int s = Serial.available();
+    if (s > 0) {  // シリアルデータがある場合
+      byte data[s + 1];
+      // byte data = Serial.read();
+      Serial.readBytes(data, s);
+      lcd.setCursor(0, 32);
+      // lcd.printf("%02x", Serial.available());
+      lcd.printf("%02x %d   ", data[0], s);
+
+      // Serial.printf("Serial data: %c\n", data);  // debug
+      /*
       while (Serial.available()) Serial.read();
       if (data == 'a') {
         input.inputBuffer = btnRIGHT;
@@ -26,18 +36,15 @@ void serialCheckerTask(void *param) {
         input.inputBuffer = btnUP;
       } else if (data == 's') {
         input.inputBuffer = btnDOWN;
-      }
+      }*/
     }
-    vTaskDelay(100);
+    vTaskDelay(1);
   }
 }
 
 Input::Input() { pinMode(INPUT_PIN, ANALOG); }
 
-void Input::init() {
-  xTaskCreateUniversal(inputTask, "inputTask", 8192, NULL, 1, NULL, PRO_CPU_NUM);
-  xTaskCreateUniversal(serialCheckerTask, "serialTask", 8192, NULL, 1, NULL, PRO_CPU_NUM);
-}
+void Input::init() { xTaskCreateUniversal(inputTask, "inputTask", 8192, NULL, 1, NULL, PRO_CPU_NUM); }
 
 void Input::inputHandler() {
   if (!_enabled) return;
@@ -67,40 +74,58 @@ void Input::inputHandler() {
         cfgWindow.close();  // 設定ウィンドウ閉じる
         break;
       }
-      case btnFUNC: {
-        cfgWindow.close();  // 設定ウィンドウ閉じる
-        break;
-      }
     }
 
   } else {
-    switch (inputBuffer) {
-      case btnNONE: {
-        break;
+    if (ndConfig.currentMode == MODE_PLAYER) {
+      switch (inputBuffer) {
+        case btnNONE: {
+          break;
+        }
+        case btnUP: {
+          ndFile.dirPlay(1);
+          break;
+        }
+        case btnDOWN: {
+          ndFile.dirPlay(-1);
+          break;
+        }
+        case btnRIGHT: {
+          ndFile.filePlay(-1);
+          break;
+        }
+        case btnLEFT: {
+          ndFile.filePlay(1);
+          break;
+        }
+        case btnSELECT: {
+          cfgWindow.show();  // 設定ウィンドウ表示
+          break;
+        }
       }
-      case btnUP: {
-        ndFile.dirPlay(1);
-        break;
-      }
-      case btnDOWN: {
-        ndFile.dirPlay(-1);
-        break;
-      }
-      case btnRIGHT: {
-        ndFile.filePlay(-1);
-        break;
-      }
-      case btnLEFT: {
-        ndFile.filePlay(1);
-        break;
-      }
-      case btnSELECT: {
-        cfgWindow.show();  // 設定ウィンドウ表示
-        break;
-      }
-      case btnFUNC: {
-        cfgWindow.show();  // 設定ウィンドウ表示
-        break;
+    } else {
+      switch (inputBuffer) {
+        case btnNONE: {
+          break;
+        }
+        case btnUP: {
+          serialMan.changeYM2612Clock();
+          break;
+        }
+        case btnDOWN: {
+          serialMan.changeSN76489Clock();
+          break;
+        }
+        case btnRIGHT: {
+          break;
+        }
+        case btnLEFT: {
+          break;
+        }
+        case btnSELECT: {
+          cfgWindow.show();  // 設定ウィンドウ表示
+          break;
+        }
       }
     }
   }
@@ -124,7 +149,7 @@ Button Input::_readButton() {
     return btnLEFT;
   else if (VAL_3 - 120 <= in && in < VAL_3 + 120)
     return btnDOWN;
-  else if (VAL_4 - 200 <= in && in < VAL_4 + 200)
+  else if (VAL_4 - 150 <= in && in < VAL_4 + 200)
     return btnUP;
 
   return btnNONE;

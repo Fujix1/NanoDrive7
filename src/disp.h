@@ -30,7 +30,7 @@
 #define C_FOOTER_ACTIVE 0x530c    // 0x506065
 #define C_FOOTER_INACTIVE 0xbe1a  // 0xbbc0d0
 
-#define ITEM_HEIGHT 35
+#define ITEM_HEIGHT 32
 
 class LGFX : public lgfx::LGFX_Device {
  private:
@@ -54,6 +54,7 @@ bool initDisp();
 void updateDisp(tDispData data);
 void redrawOnCore0();
 void redraw();
+void serialModeDraw();
 void drawBG();
 void startTimer();
 void stopTimer();

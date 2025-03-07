@@ -242,7 +242,7 @@ void drawBG() {
   frameBuffer.fillRoundRect(6, 301, 17, 14, 2, C_FOOTER_ACTIVE);
 }
 
-// 再描画
+// プレーヤー描画
 void redraw() {
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
   _stopTimerDrawing = true;
@@ -307,13 +307,90 @@ void redraw() {
     lblSystem.setCaption(_dispData.systemEn);
   }
 
-  // /snap/songno.png を優先
-  if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", String(_dispData.no) + ".png", true, true) == false) {
-    openPNG(ndFile.dirs[ndFile.currentDir], ndFile.pngs[ndFile.currentDir], true, true);
+  // Snapshot
+  // 1) snap/[finemame].png
+  // 2) snap/[songno].png
+  // 3) ***.png
+
+  String fileName = ndFile.files[ndFile.currentDir][ndFile.currentFile];
+  fileName = fileName.substring(0, fileName.length() - 4);
+
+  if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", fileName + ".png", true, true) == false) {
+    if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", String(_dispData.no) + ".png", true, true) == false) {
+      openPNG(ndFile.dirs[ndFile.currentDir], ndFile.pngs[ndFile.currentDir], true, true);
+    }
   }
 
   frameBuffer.pushSprite(0, 0);
   _stopTimerDrawing = false;
+  xSemaphoreGive(spFrameBuffer);
+}
+
+// シリアルモード描画
+void serialModeDraw() {
+  xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
+  _stopTimerDrawing = true;
+  drawBG();
+  render.setUseRenderTask(false);
+  render.setDrawer(frameBuffer);
+
+  frameBuffer.pushImage(170 - 2 - USB_ICON_WIDTH, 2, USB_ICON_WIDTH, USB_ICON_HEIGHT, usb_icon);  // usb icon
+
+  render.loadFont(nimbusBold, sizeof(nimbusBold));
+  render.setFontSize(13);
+  render.setFontColor(C_YELLOW, C_DARK);
+  render.setCursor(27, 284);
+
+  if (vgm.freq[0] != SI5351_UNDEFINED) {
+    char buf[7];
+    dtostrf((double)vgm.freq[0] / 1000000.0, 1, 4, buf);
+    String st = "YM2612 @ " + String(buf).substring(0, 5) + " MHz";
+    render.printf(st.c_str());
+  } else {
+    render.printf("YM2612 @ -- MHz");
+  }
+  render.setCursor(27, 303);
+  if (vgm.freq[1] != SI5351_UNDEFINED) {
+    char buf[7];
+    dtostrf((double)vgm.freq[1] / 1000000.0, 1, 4, buf);
+    String st = "SN76489 @ " + String(buf).substring(0, 5) + " MHz";
+    render.printf(st.c_str());
+  } else {
+    render.printf("SN76489 @ -- MHz");
+  }
+
+  render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
+  render.setCursor(11, 284);
+  render.printf("1");
+  render.setCursor(11, 303);
+  render.printf("2");
+
+  render.setFontColor(C_ORANGE, C_HEADER);
+  render.setCursor(4, 4);
+  render.setAlignment(Align::TopLeft);
+  render.printf("USB");
+  render.unloadFont();
+
+  render.loadFont(fontMain, sizeof(fontMain));
+  render.setFontSize(16);
+  render.setFontColor(C_GRAY, C_BASEBG);
+  render.setCursor(28, 256);
+  render.printf("--");
+  render.unloadFont();
+
+  if (ndConfig.get(CFG_LANG) == LANG_JA) {
+    lblTitle.setCaption("シリアルモード");
+    lblGame.setCaption("ベータ版");
+    lblAuthor.setCaption("--");
+    lblSystem.setCaption("メガドライブ");
+  } else {
+    lblTitle.setCaption("Serial Mode");
+    lblGame.setCaption("Beta Version");
+    lblAuthor.setCaption("--");
+    lblSystem.setCaption("Mega Drive / Genesis");
+  }
+
+  frameBuffer.pushSprite(0, 0);
   xSemaphoreGive(spFrameBuffer);
 }
 
@@ -438,16 +515,16 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 0.2646;
         sprPngResized.fillSprite(TFT_BLACK);
-      } else if (sprPng.width() >= sprPng.height()) {
+      } else if (sprPng.width() > sprPng.height()) {
         // 横長
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_DARK);
+        sprPngResized.fillSprite(C_HEADER);
       } else {
         // 縦長画像
         w = 94.5 / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_DARK);
+        sprPngResized.fillSprite(C_HEADER);
       }
 
       if (AA) {
@@ -492,7 +569,19 @@ void CFGWindowEventLoop(void* pvPrams) {
         }
         case cfgEvent::Close: {
           cfgWindow.isVisible = false;
-          redraw();
+
+          // モードが違えば再起動
+          if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
+            ESP.restart();
+            return;
+          }
+
+          // 現在のモードに合わせて再描画
+          if (ndConfig.currentMode == MODE_PLAYER) {
+            redraw();
+          } else if (ndConfig.currentMode == MODE_SERIAL) {
+            serialModeDraw();
+          }
           break;
         }
         case cfgEvent::Up: {
@@ -614,6 +703,7 @@ void CFGWindow::draw() {
   render.setDrawer(frameBuffer);
   render.setAlignment(Align::TopLeft);
   render.setFontColor(C_LIGHTGRAY, C_FOOTER_ACTIVE);
+
   if (ndConfig.get(CFG_LANG) == LANG_JA) {
     render.loadFont(fontMain, sizeof(fontMain));
     render.setFontSize(17);
@@ -625,7 +715,7 @@ void CFGWindow::draw() {
     render.loadFont(nimbusBold, sizeof(nimbusBold));
     render.setFontSize(16);
     render.setCursor(6, 5);
-    render.printf("Preferences");
+    render.printf("Settings");
     render.setCursor(133, 298);
     render.printf("OK");
   }
@@ -661,7 +751,7 @@ void CFGWindow::drawItem(int index, bool toFrameBuffer) {
     label = ndConfig.items[index].labelJp;
     option = ndConfig.items[index].optionsJp[ndConfig.items[index].index];
   } else {
-    fontSize = 17;
+    fontSize = 16;
     ofr.loadFont(nimbusBold, sizeof(nimbusBold));
     label = ndConfig.items[index].labelEn;
     option = ndConfig.items[index].optionsEn[ndConfig.items[index].index];
