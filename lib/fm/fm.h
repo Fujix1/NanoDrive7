@@ -43,7 +43,6 @@ class FMChip {
   void reset();
   void setRegister(byte addr, byte value, int chipno);
   void setRegisterOPM(byte addr, byte value, uint8_t chipno);
-  void setRegisterOPLL(byte addr, byte value, uint8_t chipno);
   void setRegisterOPL3(byte port, byte addr, byte data, int chipno);
   void setYM2612(byte port, byte addr, byte data, uint8_t chipno);
   void setYM2612DAC(byte data, uint8_t chipno);
@@ -51,7 +50,7 @@ class FMChip {
   void writeRaw(byte data, byte chipno, si5351Freq_t freq);
 
  private:
-  unsigned char psgFrqLowByte = 0;
+  u8_t _psgFrqLowByte = 0;
 };
 
 extern FMChip FM;
