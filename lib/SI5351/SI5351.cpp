@@ -351,9 +351,21 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
       setupPLLInt(targetPLL, 36);                     // 25MHz * 36 = 900
       setupMultisynth(output, targetPLL, 100, 0, 1);  // 900 / 100 = 9 MHz
       break;
+    case SI5351_12000:
+      setupPLLInt(targetPLL, 24);                    // 25MHz * 24 = 600
+      setupMultisynth(output, targetPLL, 50, 0, 1);  // 600 / 50 = 12 MHz
+      break;
+    case SI5351_14000:
+      setupPLLInt(targetPLL, 28);                    // 25MHz * 27 = 700
+      setupMultisynth(output, targetPLL, 50, 0, 1);  // 700 / 50 = 14 MHz
+      break;
     case SI5351_14318:                               // 14.318180 MHz
       setupPLL(targetPLL, 27, 38352, 78125);         // 25MHz * 27 38352/78125 = 687.272640000
       setupMultisynth(output, targetPLL, 48, 0, 1);  // 687.27264000 / 48 = 14.318180 MHz
+      break;
+    case SI5351_16000:
+      setupPLLInt(targetPLL, 32);                    // 25MHz * 32 = 800
+      setupMultisynth(output, targetPLL, 50, 0, 1);  // 800 / 50 = 16 MHz
       break;
     default:                       // 4MHz
       setupPLLInt(targetPLL, 32);  // 25MHz * 32 = 800
@@ -362,10 +374,10 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
   }
   switch (output) {
     case 0:
-      this->currentFreq0 = newFreq;
+      currentFreq0 = newFreq;
       break;
     case 1:
-      this->currentFreq1 = newFreq;
+      currentFreq1 = newFreq;
       break;
   }
 }

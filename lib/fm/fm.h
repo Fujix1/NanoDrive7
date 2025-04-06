@@ -15,11 +15,11 @@
 #define D7 47
 
 #define A0 18
-#define A1 8
+#define A1 43  // もともと 8
 #define WR 40
 #define CS0 38
 #define CS1 39
-#define CS2 43
+#define CS2 8  // もともと 43
 #define IC 48
 
 #define A1_HIGH (gpio_set_level((gpio_num_t)A1, 1))

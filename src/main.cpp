@@ -1,6 +1,6 @@
 /**
  * Nano Drive 6
- * 2024 (C) Fujix
+ * 2024, 2025 (C) Fujix
  * e2j.net
  *
  * This software uses the following libraries:
@@ -64,7 +64,7 @@ void setup() {
   lcd.setFont(&fonts::Font2);
   lcd.println("NANO DRIVE DEV");
   lcd.println("2024, 2025 Fujix@e2j.net");
-  lcd.printf("Firmware: 1.85\n\n");
+  lcd.printf("Firmware: 2.00 dev\n\n");
 
   // PSRAM 初期化確認
   if (psramInit()) {

@@ -44,7 +44,7 @@ void serialCheckerTask_(void *param) {
 
 Input::Input() { pinMode(INPUT_PIN, ANALOG); }
 
-void Input::init() { xTaskCreateUniversal(inputTask, "inputTask", 8192, NULL, 1, NULL, PRO_CPU_NUM); }
+void Input::init() { xTaskCreateUniversal(inputTask, "inputTask", 10000, NULL, 1, NULL, PRO_CPU_NUM); }
 
 void Input::inputHandler() {
   if (!_enabled) return;

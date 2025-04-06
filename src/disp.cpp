@@ -54,7 +54,7 @@ LGFX::LGFX(void) {
     cfg.rgb_order = false;     // パネルの赤と青が入れ替わってしまう場合 trueに設定
     cfg.dlen_16bit = false;    // 16bitパラレルやSPIでデータ長を16bit単位で送信するパネルの場合
                                // trueに設定
-    cfg.bus_shared = false;    // SDカードとバスを共有している場合
+    cfg.bus_shared = true;     // SDカードとバスを共有している場合
                                // trueに設定(drawJpgFile等でバス制御を行います)
 
     _panel_instance.config(cfg);
@@ -515,16 +515,16 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 0.2646;
         sprPngResized.fillSprite(TFT_BLACK);
-      } else if (sprPng.width() > sprPng.height()) {
+      } else if (sprPng.width() >= sprPng.height()) {
         // 横長
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_HEADER);
+        sprPngResized.fillSprite(C_DARK);
       } else {
         // 縦長画像
         w = 94.5 / png.getWidth();
         h = 127.0 / png.getHeight();
-        sprPngResized.fillSprite(C_HEADER);
+        sprPngResized.fillSprite(C_DARK);
       }
 
       if (AA) {
@@ -640,7 +640,7 @@ void CFGWindowEventLoop(void* pvPrams) {
 void CFGWindow::init() {
   // キュ～作成
   xQueueCFGWindow = xQueueCreate(2, sizeof(cfgEvent));
-  xTaskCreateUniversal(CFGWindowEventLoop, "CFG", 12192, NULL, 1, &tskCFGEventLoop, PRO_CPU_NUM);
+  xTaskCreateUniversal(CFGWindowEventLoop, "CFG", 13192, NULL, 1, &tskCFGEventLoop, PRO_CPU_NUM);
   _sprite.createSprite(LCD_W, ITEM_HEIGHT);
   _sprFooter.createSprite(120, 23);
 }

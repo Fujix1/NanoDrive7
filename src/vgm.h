@@ -79,16 +79,17 @@ typedef enum {
   CHIP_NONE,
   CHIP_SN76489_0,
   CHIP_SN76489_1,
-  CHIP_YM2413,
-  CHIP_YM2612,
-  CHIP_YM2151,
-  CHIP_YM2203_0,
-  CHIP_YM2203_1,
-  CHIP_YM2608,
-  CHIP_YM2610,
-  CHIP_YM3812,
-  CHIP_AY8910,
-  CHIP_YMF262,
+  CHIP_YM2413,    // OPLL
+  CHIP_YM2612,    // OPN2
+  CHIP_YM2151,    // OPM
+  CHIP_YM2203_0,  // OPN
+  CHIP_YM2203_1,  // OPN
+  CHIP_YM2608,    // OPNA
+  CHIP_YM2610,    // OPNB
+  CHIP_YM3526,    // OPL
+  CHIP_YM3812,    // OPL2
+  CHIP_AY8910,    // PSG
+  CHIP_YMF262,    // OPL3
 } t_chip;
 
 // クロック使用番号
@@ -96,7 +97,7 @@ typedef enum { CLK_0, CLK_1, CLK_2, CLK_3 } t_clockSlot;
 
 // チップ名
 const std::vector<String> CHIP_LABEL = {"",       "SN76489", "SN76489", "YM2413", "YM2612", "YM2151", "YM2203",
-                                        "YM2203", "YM2608",  "YM2610",  "YM3812", "AY8910", "YMF262"};
+                                        "YM2203", "YM2608",  "YM2610",  "YM3526", "YM3812", "AY8910", "YMF262"};
 
 class VGM {
  public:

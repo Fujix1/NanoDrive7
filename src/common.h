@@ -27,7 +27,7 @@
 #define CHIP2 CHIP_NONE
 
 #define USE_YM2203_0
-// #define USE_YM2413
+#define USE_YM2413
 #define USE_AY8910
 // #define USE_YM3812
 #define USE_YMF262

@@ -83,13 +83,13 @@ bool NDConfig::init() {
 }
 
 void NDConfig::saveCfg() {
-  xTaskCreateUniversal(_saveCFGonCore0, "saveCFG", 8192, NULL, 1, NULL, PRO_CPU_NUM);
+  xTaskCreateUniversal(_saveCFGonCore0, "saveCFG", 10000, NULL, 1, NULL, PRO_CPU_NUM);
   nju72341.setFadeoutDuration(get(CFG_FADEOUT));
   return;
 }
 
 void NDConfig::saveHistory() {
-  xTaskCreateUniversal(_saveHistoryonCore0, "saveHistory", 8192, NULL, 1, NULL, PRO_CPU_NUM);
+  xTaskCreateUniversal(_saveHistoryonCore0, "saveHistory", 10000, NULL, 1, NULL, PRO_CPU_NUM);
   return;
 }
 

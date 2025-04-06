@@ -105,9 +105,6 @@ bool VGM::ready() {
         u8_t entryCount = ndFile.get_ui8_at(0xbc + headerSize + chpClockOffset);
         u8_t chipID = ndFile.get_ui8_at(0xbc + headerSize + chpClockOffset + 1);
         u32_t clock = ndFile.get_ui32_at(0xbc + headerSize + chpClockOffset + 2);
-
-        // Serial.printf("chipId: %d, freq: %x\n", chipID, clock);
-
         if (chipID == 0) {
           freq[1] = normalizeFreq(sn76489_clock, CHIP_SN76489_0);
           freq[2] = normalizeFreq(clock, CHIP_SN76489_0);
@@ -179,7 +176,7 @@ bool VGM::ready() {
       }
       // Use YM2610 as YM2203
       if (CHIP0 == CHIP_YM2610) {
-        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2610);
+        freq[CHIP0_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       } else if (CHIP1 == CHIP_YM2610) {
         freq[CHIP1_CLOCK] = normalizeFreq(ym2203_clock, CHIP_YM2612);
       }
@@ -205,10 +202,42 @@ bool VGM::ready() {
       freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
     }
     if (CHIP0 == CHIP_YMF262) {
-      freq[CHIP0_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YMF262);
+    }
+    if (CHIP1 == CHIP_YMF262) {
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YMF262);
+    }
+  }
+
+  u32_t ym3526_clock = ndFile.get_ui32_at(0x54);
+  if (ym3526_clock) {
+    if (CHIP0 == CHIP_YM3526) {
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YM3526);
+    }
+    if (CHIP1 == CHIP_YM3526) {
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YM3526);
     }
     if (CHIP0 == CHIP_YMF262) {
-      freq[CHIP1_CLOCK] = normalizeFreq(ym3812_clock, CHIP_YM3812);
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YMF262);
+    }
+    if (CHIP1 == CHIP_YMF262) {
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YMF262);
+    }
+  }
+
+  u32_t y8950_clock = ndFile.get_ui32_at(0x58);
+  if (y8950_clock) {
+    if (CHIP0 == CHIP_YM3526) {
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YM3526);
+    }
+    if (CHIP1 == CHIP_YM3526) {
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YM3526);
+    }
+    if (CHIP0 == CHIP_YMF262) {
+      freq[CHIP0_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YMF262);
+    }
+    if (CHIP1 == CHIP_YMF262) {
+      freq[CHIP1_CLOCK] = normalizeFreq(ym3526_clock, CHIP_YMF262);
     }
   }
 
@@ -234,29 +263,27 @@ bool VGM::ready() {
   }
 
   SI5351.enableOutputs(true);
-
   vgmLoaded = true;  // VGM 開始できる
+
   // GD3 tags
   _parseGD3(gd3Offset);
-
   String chip[2] = {"", ""};
   int c = 0;
-
   if (freq[0] != 0) {
-    char buf[7];
-    dtostrf((double)freq[0] / 1000000.0, 1, 4, buf);
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%.4f", (double)freq[0] / 1000000.0);
     chip[c++] = CHIP_LABEL[CHIP0] + " @ " + String(buf).substring(0, 5) + " MHz";
   }
 
   if (freq[1] != 0) {
-    char buf[7];
-    dtostrf((double)freq[1] / 1000000.0, 1, 4, buf);
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%.4f", (double)freq[1] / 1000000.0);
     chip[c++] = CHIP_LABEL[CHIP1] + " @ " + String(buf).substring(0, 5) + " MHz";
   }
 
   if (c < 2 && freq[2] != 0) {
-    char buf[7];
-    dtostrf((double)freq[2] / 1000000.0, 1, 4, buf);
+    char buf[10];
+    snprintf(buf, sizeof(buf), "%.4f", (double)freq[2] / 1000000.0);
     chip[c++] = CHIP_LABEL[CHIP2] + " @ " + String(buf).substring(0, 5) + " MHz";
   }
 
@@ -518,13 +545,14 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
       }
       break;
     }
+    case CHIP_YM3526:
     case CHIP_YM3812: {
       switch (freq) {
-        case 3500000:
-          return SI5351_3500;
-          break;
         case 3000000:
           return SI5351_3000;
+          break;
+        case 3500000:
+          return SI5351_3500;
           break;
         case 4000000:
         case 0x40000000 + 4000000:
@@ -555,6 +583,22 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
     }
     case CHIP_YMF262: {
       switch (freq) {
+        case 2000000:
+          return SI5351_8000;
+          break;
+        case 3000000:
+          return SI5351_12000;
+          break;
+        case 3500000:
+          return SI5351_14000;
+          break;
+        case 3579580:
+        case 3579545:
+          return SI5351_14318;
+          break;
+        case 4000000:
+          return SI5351_16000;
+          break;
         case 0xda7a64:
           return SI5351_14318;
           break;
@@ -586,8 +630,8 @@ void VGM::vgmProcess() {
   _vgmRealSamples = _vgmSamples;
   _vgmWaitUntil = _vgmStart + _vgmRealSamples * 22.67573696145125;
 
-  while (_vgmWaitUntil - 22 > micros64()) {
-    ets_delay_us(22);
+  while (_vgmWaitUntil > micros64()) {
+    // ets_delay_us(1);
   }
 }
 
@@ -631,7 +675,7 @@ void VGM::vgmProcessMain() {
     case 0x51:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPLL(reg, dat, 1);
+      // FM.setRegisterOPLL(reg, dat, 1);
       break;
 #endif
 
@@ -653,27 +697,35 @@ void VGM::vgmProcessMain() {
       break;
 #endif
 
-#ifdef USE_YM2151
     case 0x54:  // YM2151
     case 0xa4:
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
+#ifdef USE_YM2151
       if (reg != 0x10 || reg != 0x11) {  // タイマー設定は無視
         FM.setRegisterOPM(reg, dat, 0);
       }
-      break;
 #endif
+      break;
 
-#ifdef USE_YM2203_0
     case 0x55:  // YM2203_0
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
+#ifdef USE_YM2203_0
       FM.setRegister(reg, dat, 0);
-      break;
 #endif
+      break;
 
-#ifdef USE_YM2203_1
     case 0xA5:  // YM2203_1
+      reg = ndFile.get_ui8();
+      dat = ndFile.get_ui8();
+#ifdef USE_YM2203_1
+      FM.setRegister(reg, dat, 1);
+#endif
+      break;
+
+#ifdef USE_YM3526
+    case 0x5B:  // YM3526
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegister(reg, dat, 1);
@@ -686,17 +738,18 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       FM.setRegister(reg, dat, 1);
       break;
-
 #endif
 
 #ifdef USE_YMF262
+    case 0x5C:  // Y8950 FM
+    case 0x5B:  // YM3526
     case 0x5A:  // YM3812
-    case 0x5E:  // YMF262 Port 0
+    case 0x5E:  // YMF262 Reg Array 0
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegisterOPL3(0, reg, dat, 1);
       break;
-    case 0x5F:  // YMF262 Port 1
+    case 0x5F:  // YMF262 Reg Array 1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegisterOPL3(1, reg, dat, 1);
@@ -773,11 +826,13 @@ void VGM::vgmProcessMain() {
       // 8KHz
       // pause_pcm(5.5125);
       break;
+#ifdef USE_YM2612
     case 0xe0:
       _pcmpos = 0x47 + ndFile.get_ui32();
       break;
+#endif
     default:
-      ESP_LOGI("Unknown VGM Command: %0.2X\n", command);
+      Serial.printf("Unknown VGM Command: %0.2X\n", command);
       break;
   }
 }

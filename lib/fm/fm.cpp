@@ -54,36 +54,17 @@ void FMChip::begin() {
 }
 
 void FMChip::reset(void) {
-  CS0_LOW;
-  CS1_LOW;
-  CS2_LOW;
-
-  WR_HIGH;
-  A0_LOW;
-  IC_LOW;
-
-  ets_delay_us(32);
-  // 72 cycles for YM2151 at 4MHz: 0.25us * 72 = 18us
-  // 192 cycles for YM3438 -> 8MHz 0.125us * 192 = 24us
-  IC_HIGH;
   CS0_HIGH;
   CS1_HIGH;
   CS2_HIGH;
-
-  // stop sound output from SN76489
-  FM.write(0x9f, 1, SI5351_1500);
-  FM.write(0xbf, 1, SI5351_1500);
-  FM.write(0xdf, 1, SI5351_1500);
-  FM.write(0xff, 1, SI5351_1500);
-
-  FM.write(0x9f, 2, SI5351_1500);
-  FM.write(0xbf, 2, SI5351_1500);
-  FM.write(0xdf, 2, SI5351_1500);
-  FM.write(0xff, 2, SI5351_1500);
-
+  WR_HIGH;
+  A0_LOW;
+  A1_LOW;
+  IC_LOW;
+  delay(1);
+  IC_HIGH;
+  delay(1);
   _psgFrqLowByte = 0;
-
-  delay(16);
 }
 
 // SN76489
@@ -351,6 +332,13 @@ void FMChip::setRegisterOPM(byte addr, byte data, uint8_t chipno = 0) {
 }
 
 void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
+  A0_LOW;
+  if (port == 1) {
+    A1_HIGH;
+  } else {
+    A1_LOW;
+  }
+  dedic_gpio_bundle_write(dataBus, 0xff, addr);
   switch (chipno) {
     case 0:
       CS0_LOW;
@@ -361,37 +349,28 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
       CS0_HIGH;
       CS1_LOW;
       CS2_HIGH;
+      break;
     case 2:
       CS0_HIGH;
       CS1_HIGH;
       CS2_LOW;
       break;
   }
-  if (port == 1) {
-    A1_HIGH;
-  } else {
-    A1_LOW;
-  }
-
   // Address
-  A0_LOW;
-  dedic_gpio_bundle_write(dataBus, 0xff, addr);
   WR_LOW;
-  ets_delay_us(16);
   WR_HIGH;
-  A0_HIGH;
 
-  ets_delay_us(16);
-
-  // 32 clocks to write address
-  // 14.318180 MHz: 69.84 ns / cycle
-  //  x 32 = 2,234.88 ns = 2.235 us
+  ets_delay_us(4);
+  // 32 clocks after writing address and data
+  // 14.318180 MHz: 69.84 ns / cycle  x 32 = 2,234.88 ns = 2.235 us
+  // 8.000000 MHz: 125 ns / cycle x 32 = 4,000 ns = 4 us
 
   // data
+  A0_HIGH;
   dedic_gpio_bundle_write(dataBus, 0xff, data);
   WR_LOW;
-  ets_delay_us(16);
   WR_HIGH;
+
   switch (chipno) {
     case 0:
       CS0_HIGH;
@@ -403,11 +382,7 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
       CS2_HIGH;
       break;
   }
-  if (port == 1) {
-    A1_LOW;
-  }
-
-  ets_delay_us(16);
+  ets_delay_us(4);
 }
 
 FMChip FM;
