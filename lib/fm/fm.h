@@ -1,6 +1,7 @@
 #ifndef FM_H
 #define FM_H
 #include <Arduino.h>
+#include <soc/gpio_reg.h>
 
 #include "SI5351.hpp"
 
@@ -15,27 +16,33 @@
 #define D7 47
 
 #define A0 18
-#define A1 43  // もともと 8
+#define A1 43  // 回路図では 8
 #define WR 40
 #define CS0 38
 #define CS1 39
-#define CS2 8  // もともと 43
+#define CS2 8   // 回路図では 43
+#define CS3 17  // 回路図では MUTE
 #define IC 48
 
-#define A1_HIGH (gpio_set_level((gpio_num_t)A1, 1))
-#define A1_LOW (gpio_set_level((gpio_num_t)A1, 0))
-#define A0_HIGH (gpio_set_level((gpio_num_t)A0, 1))
-#define A0_LOW (gpio_set_level((gpio_num_t)A0, 0))
-#define WR_HIGH (gpio_set_level((gpio_num_t)WR, 1))
-#define WR_LOW (gpio_set_level((gpio_num_t)WR, 0))
-#define CS0_HIGH (gpio_set_level((gpio_num_t)CS0, 1))
-#define CS0_LOW (gpio_set_level((gpio_num_t)CS0, 0))
-#define CS1_HIGH (gpio_set_level((gpio_num_t)CS1, 1))
-#define CS1_LOW (gpio_set_level((gpio_num_t)CS1, 0))
-#define CS2_HIGH (gpio_set_level((gpio_num_t)CS2, 1))
-#define CS2_LOW (gpio_set_level((gpio_num_t)CS2, 0))
-#define IC_HIGH (gpio_set_level((gpio_num_t)IC, 1))
-#define IC_LOW (gpio_set_level((gpio_num_t)IC, 0))
+// GPIO 0～31用のマクロ
+#define A0_HIGH (REG_WRITE(GPIO_OUT_W1TS_REG, (1 << A0)))
+#define A0_LOW (REG_WRITE(GPIO_OUT_W1TC_REG, (1 << A0)))
+#define CS2_HIGH (REG_WRITE(GPIO_OUT_W1TS_REG, (1 << CS2)))
+#define CS2_LOW (REG_WRITE(GPIO_OUT_W1TC_REG, (1 << CS2)))
+#define CS3_HIGH (REG_WRITE(GPIO_OUT_W1TS_REG, (1 << CS3)))
+#define CS3_LOW (REG_WRITE(GPIO_OUT_W1TC_REG, (1 << CS3)))
+
+// GPIO 32～48用のマクロ（ビット位置は32を引いた値を使用）
+#define A1_HIGH (REG_WRITE(GPIO_OUT1_W1TS_REG, (1 << (A1 - 32))))
+#define A1_LOW (REG_WRITE(GPIO_OUT1_W1TC_REG, (1 << (A1 - 32))))
+#define WR_HIGH (REG_WRITE(GPIO_OUT1_W1TS_REG, (1 << (WR - 32))))
+#define WR_LOW (REG_WRITE(GPIO_OUT1_W1TC_REG, (1 << (WR - 32))))
+#define CS0_HIGH (REG_WRITE(GPIO_OUT1_W1TS_REG, (1 << (CS0 - 32))))
+#define CS0_LOW (REG_WRITE(GPIO_OUT1_W1TC_REG, (1 << (CS0 - 32))))
+#define CS1_HIGH (REG_WRITE(GPIO_OUT1_W1TS_REG, (1 << (CS1 - 32))))
+#define CS1_LOW (REG_WRITE(GPIO_OUT1_W1TC_REG, (1 << (CS1 - 32))))
+#define IC_HIGH (REG_WRITE(GPIO_OUT1_W1TS_REG, (1 << (IC - 32))))
+#define IC_LOW (REG_WRITE(GPIO_OUT1_W1TC_REG, (1 << (IC - 32))))
 
 class FMChip {
  public:

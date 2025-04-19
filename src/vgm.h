@@ -93,7 +93,7 @@ typedef enum {
 } t_chip;
 
 // クロック使用番号
-typedef enum { CLK_0, CLK_1, CLK_2, CLK_3 } t_clockSlot;
+typedef enum { CLK_0, CLK_1, CLK_2, CLK_NONE } t_clockSlot;
 
 // チップ名
 const std::vector<String> CHIP_LABEL = {"",       "SN76489", "SN76489", "YM2413", "YM2612", "YM2151", "YM2203",
@@ -112,11 +112,20 @@ class VGM {
 
   std::vector<si5351Freq_t> freq = {SI5351_UNDEFINED, SI5351_UNDEFINED};
 
-  s8_t chipSlot[11];
+  byte chipSlot[14];
+  byte clockSlot[14];  // クロック使用番号
+
+  std::vector<u8_t> data;  // VGM データ
 
   bool vgmLoaded = false;
   bool xgmLoaded = false;
 
+  VGM();
+  bool ready();  // VGM の再生準備
+  void vgmProcess();
+  void vgmProcessMain();
+
+#ifdef USE_XGM
   u8_t XGMVersion;  // XGM バージョン 1 or 2
   std::vector<u32_t> XGMSampleAddressTable;
   std::vector<u32_t> XGMSampleSizeTable;
@@ -126,14 +135,10 @@ class VGM {
   u8_t XGM_FLAGS;
   u32_t XGM_FMLEN;   // XGM2
   u32_t XGM_PSGLEN;  // XGM2
-
-  VGM();
-  bool ready();     // VGM の再生準備
-  bool XGMReady();  // XGM の再生準備
-  void vgmProcess();
-  void vgmProcessMain();
+  bool XGMReady();   // XGM の再生準備
   void xgmProcess();
   void xgm2Process();
+#endif
   u64_t getCurrentTime();
 
  private:
@@ -146,7 +151,9 @@ class VGM {
   u64_t _vgmWaitUntil;
   u32_t _pcmpos = 0;
   s64_t micros64();
+  String _formatChipName(si5351Freq_t freq, t_chip chip);
 
+#ifdef USE_XGM
   u32_t _xgmSamplePos[XGM1_MAX_PCM_CH];
   u8_t _xgmSampleId[XGM1_MAX_PCM_CH];
   u8_t _xgmPriorities[XGM1_MAX_PCM_CH];
@@ -169,6 +176,7 @@ class VGM {
   u32_t _xgm2_ym_pos;
   u32_t _xgm2_psg_offset;
   u32_t _xgm2_psg_pos;
+#endif
 
   si5351Freq_t normalizeFreq(u32_t freq, t_chip chip);
 

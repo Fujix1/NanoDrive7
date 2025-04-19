@@ -63,6 +63,7 @@ LGFX::LGFX(void) {
 }
 
 LGFX lcd;
+
 static LGFX_Sprite frameBuffer(&lcd);
 static LGFX_Sprite sprPng(&lcd);
 static LGFX_Sprite sprPngResized(&lcd);

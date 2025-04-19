@@ -45,7 +45,7 @@ void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
   fadeOutStatus = FADEOUT_BEFORE;
 
   _isFadeoutEnabled = (fadeOutDuration != FO_0);
-  pinMode(NJU72341_MUTE_PIN, OUTPUT);
+  // pinMode(NJU72341_MUTE_PIN, OUTPUT);
   mute();
 
   setInputGain(GAIN9);

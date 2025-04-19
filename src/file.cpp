@@ -219,9 +219,12 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
     String ext = st.substring(st.length() - 4);
     if (ext.equalsIgnoreCase(".vgm")) {
       result = vgm.ready();
-    } else if (ext.equalsIgnoreCase(".xgm")) {
+    }
+#ifdef USE_XGM
+    else if (ext.equalsIgnoreCase(".xgm")) {
       result = vgm.XGMReady();
     }
+#endif
   }
   nju72341.reset(att);
   xSemaphoreGive(spFileOpen);

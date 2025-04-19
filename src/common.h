@@ -25,16 +25,19 @@
 #define CHIP0 CHIP_YM2203_0
 #define CHIP1 CHIP_YMF262
 #define CHIP2 CHIP_NONE
+#define CHIP3 CHIP_YM2413
+
+// どのクロックを使用するか
+#define CHIP0_CLOCK CLK_0
+#define CHIP1_CLOCK CLK_1
+#define CHIP2_CLOCK CLK_0
+#define CHIP3_CLOCK CLK_1
+
 
 #define USE_YM2203_0
 #define USE_YM2413
 #define USE_AY8910
-// #define USE_YM3812
 #define USE_YMF262
-
-#define CHIP0_CLOCK CLK_0
-#define CHIP1_CLOCK CLK_1
-#define CHIP2_CLOCK CLK_0
 
 // LCD
 #define LCD_W 170
@@ -66,6 +69,9 @@
 #define I2C_SCL 15
 
 // NJU72341
-#define NJU72341_MUTE_PIN 17
+// #define NJU72341_MUTE_PIN 17
+
+// XGM
+// #define USE_XGM
 
 #endif

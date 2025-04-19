@@ -38,6 +38,7 @@ void FMChip::begin() {
   pinMode(CS0, OUTPUT);
   pinMode(CS1, OUTPUT);
   pinMode(CS2, OUTPUT);
+  pinMode(CS3, OUTPUT);
 
   pinMode(A0, OUTPUT);
   pinMode(A1, OUTPUT);
@@ -51,20 +52,30 @@ void FMChip::begin() {
   CS0_HIGH;
   CS1_HIGH;
   CS2_HIGH;
+  CS3_HIGH;
 }
 
 void FMChip::reset(void) {
-  CS0_HIGH;
-  CS1_HIGH;
-  CS2_HIGH;
+  CS0_LOW;
+  CS1_LOW;
+  CS2_LOW;
+  CS3_LOW;
   WR_HIGH;
   A0_LOW;
   A1_LOW;
   IC_LOW;
-  delay(1);
+  ets_delay_us(100);
   IC_HIGH;
-  delay(1);
-  _psgFrqLowByte = 0;
+  ets_delay_us(100);
+  CS0_HIGH;
+  CS1_HIGH;
+  CS2_HIGH;
+  CS3_HIGH;
+
+  // SET OPL3 to OPL2 mode to supress YM2413 noise
+  FM.setRegisterOPL3(1, 0x05, 0, 1);
+
+  //_psgFrqLowByte = 0;
 }
 
 // SN76489
@@ -98,6 +109,9 @@ void FMChip::writeRaw(byte data, byte chipno, si5351Freq_t freq) {
     case 2:
       CS2_LOW;
       break;
+    case 3:
+      CS3_LOW;
+      break;
   }
   WR_HIGH;
   dedic_gpio_bundle_write(dataBus, 0xff, data);
@@ -121,6 +135,9 @@ void FMChip::writeRaw(byte data, byte chipno, si5351Freq_t freq) {
     case 2:
       CS2_HIGH;
       break;
+    case 3:
+      CS3_HIGH;
+      break;
   }
 }
 
@@ -134,6 +151,9 @@ void FMChip::setYM2612(byte bank, byte addr, byte data, uint8_t chipno) {
       CS1_LOW;
     case 2:
       CS2_LOW;
+      break;
+    case 3:
+      CS3_LOW;
       break;
   }
 
@@ -170,6 +190,9 @@ void FMChip::setYM2612(byte bank, byte addr, byte data, uint8_t chipno) {
       break;
     case 2:
       CS2_HIGH;
+      break;
+    case 3:
+      CS3_HIGH;
       break;
   }
 
@@ -231,7 +254,7 @@ void FMChip::setYM2612DAC(byte data, uint8_t chipno) {
   }
 }
 
-// YM2203, AY-8910用レジスタ設定
+// 汎用レジスタ設定：YM2203, AY-8910, YM2413
 void FMChip::setRegister(byte addr, byte data, int chipno = 0) {
   // Address
   dedic_gpio_bundle_write(dataBus, 0xff, addr);
@@ -239,18 +262,15 @@ void FMChip::setRegister(byte addr, byte data, int chipno = 0) {
   switch (chipno) {
     case 0:
       CS0_LOW;
-      CS1_HIGH;
-      CS2_HIGH;
       break;
     case 1:
-      CS0_HIGH;
       CS1_LOW;
-      CS2_HIGH;
       break;
     case 2:
-      CS0_HIGH;
-      CS1_HIGH;
       CS2_LOW;
+      break;
+    case 3:
+      CS3_LOW;
       break;
   }
   ets_delay_us(2);
@@ -276,6 +296,9 @@ void FMChip::setRegister(byte addr, byte data, int chipno = 0) {
       break;
     case 2:
       CS2_HIGH;
+      break;
+    case 3:
+      CS3_HIGH;
       break;
   }
   ets_delay_us(16);  // 最低16
@@ -288,18 +311,15 @@ void FMChip::setRegisterOPM(byte addr, byte data, uint8_t chipno = 0) {
   switch (chipno) {
     case 0:
       CS0_LOW;
-      CS1_HIGH;
-      CS2_HIGH;
       break;
     case 1:
-      CS0_HIGH;
       CS1_LOW;
-      CS2_HIGH;
       break;
     case 2:
-      CS0_HIGH;
-      CS1_HIGH;
       CS2_LOW;
+      break;
+    case 3:
+      CS3_LOW;
       break;
   }
   ets_delay_us(2);
@@ -326,6 +346,9 @@ void FMChip::setRegisterOPM(byte addr, byte data, uint8_t chipno = 0) {
       break;
     case 2:
       CS2_HIGH;
+      break;
+    case 3:
+      CS3_HIGH;
       break;
   }
   ets_delay_us(12);
@@ -342,22 +365,20 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
   switch (chipno) {
     case 0:
       CS0_LOW;
-      CS1_HIGH;
-      CS2_HIGH;
       break;
     case 1:
-      CS0_HIGH;
       CS1_LOW;
-      CS2_HIGH;
       break;
     case 2:
-      CS0_HIGH;
-      CS1_HIGH;
       CS2_LOW;
+      break;
+    case 3:
+      CS3_LOW;
       break;
   }
   // Address
   WR_LOW;
+  ets_delay_us(2);
   WR_HIGH;
 
   ets_delay_us(4);
@@ -369,6 +390,7 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
   A0_HIGH;
   dedic_gpio_bundle_write(dataBus, 0xff, data);
   WR_LOW;
+  ets_delay_us(2);
   WR_HIGH;
 
   switch (chipno) {
@@ -381,8 +403,11 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
     case 2:
       CS2_HIGH;
       break;
+    case 3:
+      CS3_HIGH;
+      break;
   }
-  ets_delay_us(4);
+  ets_delay_us(5);
 }
 
 FMChip FM;

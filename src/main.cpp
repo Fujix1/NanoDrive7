@@ -42,9 +42,8 @@
 
 void setup() {
   // 最初にミュート
-  pinMode(NJU72341_MUTE_PIN, OUTPUT);
-  digitalWrite(NJU72341_MUTE_PIN, LOW);
-  pinMode(43, OUTPUT);
+  // pinMode(NJU72341_MUTE_PIN, OUTPUT);
+  // digitalWrite(NJU72341_MUTE_PIN, LOW);
 
   pinMode(D0, OUTPUT);
   digitalWrite(D0, HIGH);
@@ -150,12 +149,15 @@ void loop() {
   while (1) {
     if (vgm.vgmLoaded) {
       vgm.vgmProcess();
-    } else if (vgm.xgmLoaded) {
+    }
+#ifdef USE_XGM
+    else if (vgm.xgmLoaded) {
       if (vgm.XGMVersion == 1)
         vgm.xgmProcess();
       else
         vgm.xgm2Process();
     }
+#endif
     input.inputHandler();
   }
 }

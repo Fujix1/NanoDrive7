@@ -138,18 +138,18 @@ void Input::setEnabled(bool state) { _enabled = state; }
 // ボタンの状態取得
 Button Input::_readButton() {
   u16_t in = analogRead(INPUT_PIN);
-  // Serial.printf("%d\n", in);
+  //Serial.printf("%d\n", in);
   if (in > VAL_NONE - 100)
     return btnNONE;
   else if (in < VAL_0 + 100)
     return btnSELECT;
   else if (VAL_1 - 80 <= in && in < VAL_1 + 80)
     return btnRIGHT;
-  else if (VAL_2 - 90 <= in && in < VAL_2 + 80)
+  else if (VAL_2 - 100 <= in && in < VAL_2 + 100)
     return btnLEFT;
   else if (VAL_3 - 120 <= in && in < VAL_3 + 120)
     return btnDOWN;
-  else if (VAL_4 - 150 <= in && in < VAL_4 + 200)
+  else if (VAL_4 - 180 <= in && in < VAL_4 + 180)
     return btnUP;
 
   return btnNONE;
