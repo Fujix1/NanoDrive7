@@ -240,8 +240,9 @@ void SI5351_cls::setupMultisynth(uint8_t output, si5351PLL_t pllSource, uint32_t
 void SI5351_cls::enableOutputs(bool enabled) { write8(SI5351_REGISTER_3_OUTPUT_ENABLE_CONTROL, enabled ? 0x00 : 0xFF); }
 
 // new frequency
-void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
-  switch (output) {
+void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
+  
+  switch (outputCh) {
     case 0:
       if (this->currentFreq0 == newFreq) return;
       break;
@@ -252,7 +253,7 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
 
   si5351PLL_t targetPLL;
 
-  if (output == 0) {
+  if (outputCh == 0) {
     targetPLL = SI5351_PLL_A;
   } else {
     targetPLL = SI5351_PLL_B;
@@ -261,23 +262,27 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
   switch (newFreq) {
     case SI5351_1250:  // 1.250MHz
       setupPLLInt(targetPLL, 31);
-      setupMultisynth(output, targetPLL, 620, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 620, 0, 1);
       break;
     case SI5351_1500:  // 1.5MHz
       setupPLL(targetPLL, 30, 0, 1);
-      setupMultisynth(output, targetPLL, 500, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 500, 0, 1);
       break;
     case SI5351_1536:  // 1.536MHz
       setupPLL(targetPLL, 28, 52, 3125);
-      setupMultisynth(output, targetPLL, 456, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 456, 0, 1);
       break;
     case SI5351_1789:  // 1.789772MHz
       setupPLL(targetPLL, 27, 575277, 625000);
-      setupMultisynth(output, targetPLL, 390, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 390, 0, 1);
       break;
     case SI5351_2000:              // 2MHz
       setupPLLInt(targetPLL, 32);  // 25MHz * 32 = 800
-      setupMultisynth(output, targetPLL, 400, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 400, 0, 1);
+      break;
+    case SI5351_2500:              // 2.5MHz
+      setupPLLInt(targetPLL, 30);  // 25MHz * 30 = 750
+      setupMultisynth(outputCh, targetPLL, 300, 0, 1);
       break;
     case SI5351_2578:  // 2.578 MHz
       setupPLL(targetPLL, 28, 3868, 78125);
@@ -285,94 +290,94 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t output) {
       break;
     case SI5351_3000:  // 3MHz
       setupPLL(targetPLL, 30, 0, 1);
-      setupMultisynth(output, targetPLL, 250, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 250, 0, 1);
       break;
     case SI5351_3072:  // 3.072MHz
       setupPLL(targetPLL, 27, 2409, 3125);
-      setupMultisynth(output, targetPLL, 226, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 226, 0, 1);
       break;
     case SI5351_3332:  // 3.332 MHz
       setupPLL(targetPLL, 27, 15534, 15625);
-      setupMultisynth(output, targetPLL, 210, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 210, 0, 1);
       break;
-    case SI5351_3375:                                 // 3.375 MHz
-      setupPLLInt(targetPLL, 27);                     // 25MHz * 27 = 675
-      setupMultisynth(output, targetPLL, 200, 0, 1);  // 675/200 = 3.375
+    case SI5351_3375:                                   // 3.375 MHz
+      setupPLLInt(targetPLL, 27);                       // 25MHz * 27 = 675
+      setupMultisynth(outputCh, targetPLL, 200, 0, 1);  // 675/200 = 3.375
       break;
     case SI5351_3500:  // 3.5 MHz
       setupPLL(targetPLL, 35, 0, 1);
-      setupMultisynth(output, targetPLL, 250, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 250, 0, 1);
       break;
     case SI5351_3579:  // 3.57954545 MHz
       setupPLL(targetPLL, 28, 15909, 250000);
-      setupMultisynth(output, targetPLL, 196, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 196, 0, 1);
       break;
     case SI5351_4000:              // 4MHz
       setupPLLInt(targetPLL, 32);  // 25MHz * 32 = 800
-      setupMultisynth(output, targetPLL, 200, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 200, 0, 1);
       break;
     case SI5351_4500:  // 4.5 MHz
       setupPLL(targetPLL, 27, 0, 1);
-      setupMultisynth(output, targetPLL, 150, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 150, 0, 1);
       break;
     case SI5351_5000:
-      setupPLLInt(targetPLL, 30);                     // 25MHz * 30 = 750
-      setupMultisynth(output, targetPLL, 150, 0, 1);  // 750 / 150 = 5 MHz
+      setupPLLInt(targetPLL, 30);                       // 25MHz * 30 = 750
+      setupMultisynth(outputCh, targetPLL, 150, 0, 1);  // 750 / 150 = 5 MHz
       break;
     case SI5351_6000:
-      setupPLLInt(targetPLL, 24);                     // 25MHz * 24 = 600
-      setupMultisynth(output, targetPLL, 100, 0, 1);  // 600 / 100 = 6 MHz
+      setupPLLInt(targetPLL, 24);                       // 25MHz * 24 = 600
+      setupMultisynth(outputCh, targetPLL, 100, 0, 1);  // 600 / 100 = 6 MHz
       break;
     case SI5351_6144:
       setupPLL(targetPLL, 28, 52, 3125);
-      setupMultisynth(output, targetPLL, 114, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 114, 0, 1);
       break;
     case SI5351_7159:
       setupPLL(targetPLL, 27, 153409, 312500);
-      setupMultisynth(output, targetPLL, 96, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 96, 0, 1);
       break;
     case SI5351_7600:  // Mega Drive PAL: 7.600489 MHz
       setupPLL(targetPLL, 27, 242449, 250000);
-      setupMultisynth(output, targetPLL, 92, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 92, 0, 1);
       break;
     case SI5351_7670:  // Mega Drive NTSC: 7.670453 MHz
       setupPLL(targetPLL, 27, 0, 1);
-      setupMultisynth(output, targetPLL, 88, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 88, 0, 1);
       break;
     case SI5351_7987:
       setupPLL(targetPLL, 28, 357, 3125);
-      setupMultisynth(output, targetPLL, 88, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 88, 0, 1);
       break;
-    case SI5351_8000:                                 // 8 MHz
-      setupPLLInt(targetPLL, 32);                     // 25MHz * 32 = 800
-      setupMultisynth(output, targetPLL, 100, 0, 1);  // 800 / 100 = 8 MHz
+    case SI5351_8000:                                   // 8 MHz
+      setupPLLInt(targetPLL, 32);                       // 25MHz * 32 = 800
+      setupMultisynth(outputCh, targetPLL, 100, 0, 1);  // 800 / 100 = 8 MHz
       break;
-    case SI5351_9000:                                 // 9 MHz
-      setupPLLInt(targetPLL, 36);                     // 25MHz * 36 = 900
-      setupMultisynth(output, targetPLL, 100, 0, 1);  // 900 / 100 = 9 MHz
+    case SI5351_9000:                                   // 9 MHz
+      setupPLLInt(targetPLL, 36);                       // 25MHz * 36 = 900
+      setupMultisynth(outputCh, targetPLL, 100, 0, 1);  // 900 / 100 = 9 MHz
       break;
     case SI5351_12000:
-      setupPLLInt(targetPLL, 24);                    // 25MHz * 24 = 600
-      setupMultisynth(output, targetPLL, 50, 0, 1);  // 600 / 50 = 12 MHz
+      setupPLLInt(targetPLL, 24);                      // 25MHz * 24 = 600
+      setupMultisynth(outputCh, targetPLL, 50, 0, 1);  // 600 / 50 = 12 MHz
       break;
     case SI5351_14000:
-      setupPLLInt(targetPLL, 28);                    // 25MHz * 27 = 700
-      setupMultisynth(output, targetPLL, 50, 0, 1);  // 700 / 50 = 14 MHz
+      setupPLLInt(targetPLL, 28);                      // 25MHz * 27 = 700
+      setupMultisynth(outputCh, targetPLL, 50, 0, 1);  // 700 / 50 = 14 MHz
       break;
-    case SI5351_14318:                               // 14.318180 MHz
-      setupPLL(targetPLL, 27, 38352, 78125);         // 25MHz * 27 38352/78125 = 687.272640000
-      setupMultisynth(output, targetPLL, 48, 0, 1);  // 687.27264000 / 48 = 14.318180 MHz
+    case SI5351_14318:                                 // 14.318180 MHz
+      setupPLL(targetPLL, 27, 38352, 78125);           // 25MHz * 27 38352/78125 = 687.272640000
+      setupMultisynth(outputCh, targetPLL, 48, 0, 1);  // 687.27264000 / 48 = 14.318180 MHz
       break;
     case SI5351_16000:
-      setupPLLInt(targetPLL, 32);                    // 25MHz * 32 = 800
-      setupMultisynth(output, targetPLL, 50, 0, 1);  // 800 / 50 = 16 MHz
+      setupPLLInt(targetPLL, 32);                      // 25MHz * 32 = 800
+      setupMultisynth(outputCh, targetPLL, 50, 0, 1);  // 800 / 50 = 16 MHz
       break;
     default:                       // 4MHz
       setupPLLInt(targetPLL, 32);  // 25MHz * 32 = 800
-      setupMultisynth(output, targetPLL, 200, 0, 1);
+      setupMultisynth(outputCh, targetPLL, 200, 0, 1);
       break;
   }
-  switch (output) {
+  switch (outputCh) {
     case 0:
       currentFreq0 = newFreq;
       break;

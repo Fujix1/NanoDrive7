@@ -72,8 +72,8 @@ void FMChip::reset(void) {
   CS2_HIGH;
   CS3_HIGH;
 
-  // SET OPL3 to OPL2 mode to supress YM2413 noise
-  FM.setRegisterOPL3(1, 0x05, 0, 1);
+  // SET OPL3 to OPL2 mode to supress YM2413 noise (hopefully)
+  // FM.setRegisterOPL3(1, 0x05, 0, 2);
 
   //_psgFrqLowByte = 0;
 }
@@ -301,7 +301,7 @@ void FMChip::setRegister(byte addr, byte data, int chipno = 0) {
       CS3_HIGH;
       break;
   }
-  ets_delay_us(16);  // 最低16
+  ets_delay_us(17);  // 最低17
 }
 
 // 　YM2151用レジスタ設定(最適化済)

@@ -7,6 +7,13 @@
 
 #define FADEOUT_STEPS 50
 
+/**
+ * 設定 db: 0 -95
+ * 96: ミュート
+ * NJU72341: 2ch版の場合は 1ch 2ch ステレオ処理のみ
+ * NJU72342: 4ch版の場合は 3ch 4ch は個別に設定
+ */
+
 // Aカーブの音量マップ
 static const uint8_t NJU72341_db[FADEOUT_STEPS] = {0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  2,  2,  2,  3,  3,
                                                    4,  5,  5,  6,  7,  8,  9,  11, 12, 13, 15, 17, 18, 20, 22, 24, 26,
@@ -31,7 +38,7 @@ static void fadeOutTimerHandler(void* param) {
 }
 
 void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
-  Wire.begin(I2C_SDA, I2C_SCL, 600000);
+  Wire.begin(I2C_SDA, I2C_SCL, 400000);
 
   if (NJU72342) {
     _slaveAddress = NJU72342_ADDR;
@@ -40,15 +47,18 @@ void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
     _slaveAddress = NJU72341_ADDR;
     _isNJU72342 = false;
   }
-  _attenuation = 0;
-  _currentGain = 255;
-  fadeOutStatus = FADEOUT_BEFORE;
+  _attenuation = 0;  // 音量調整値
 
+  fadeOutStatus = FADEOUT_BEFORE;  // フェードアウトしてない
   _isFadeoutEnabled = (fadeOutDuration != FO_0);
-  // pinMode(NJU72341_MUTE_PIN, OUTPUT);
-  mute();
 
-  setInputGain(GAIN9);
+  mute();                  // メイン(3ch+4ch)ミュート
+  setVolume_1B(0);         // 1ch
+  setVolume_2B(0);         // 2ch
+  setInputGain(1, GAIN9);  // 入力ゲイン設定
+  setInputGain(2, GAIN9);
+  setInputGain(3, GAIN9);
+  setInputGain(4, GAIN9);
 
   // タイマー生成
   if (fadeOutDuration == FO_0) {
@@ -73,6 +83,7 @@ void NJU72341::setFadeoutDuration(uint16_t fadeOutDuration) {
 }
 
 void NJU72341::startFadeout() {
+  // フェードアウトは 3ch 4ch のみ
   // すでに処理中のときはなにもしない。フェード時間よりループが短い場合
   if (fadeOutStatus == FADEOUT_PROCESSING) {
     return;
@@ -88,8 +99,8 @@ void NJU72341::startFadeout() {
   }
 }
 
-// att 減衰量dB: -1 = 変更しない
-void NJU72341::reset(int8_t att) {
+// att 減衰量dB:
+void NJU72341::reset(u8_t att) {
   if (att >= 0) {
     _attenuation = att;
   }
@@ -103,16 +114,18 @@ void NJU72341::resetFadeout() {
   _fadeOutStep = 0;
 }
 
-void NJU72341::setInputGain(tNJU72341_GAIN newInputGain) {
-  _inputGain = newInputGain;
+void NJU72341::setInputGain(u8_t ch, tNJU72341_GAIN newInputGain) {
+  uint8_t shift = (ch - 1) * 2;
+  _currentGain &= ~(0b11 << shift);                  // 指定chの2bitをクリア
+  _currentGain |= ((newInputGain & 0b11) << shift);  // 指定chに新値セット
   Wire.beginTransmission(_slaveAddress);
   Wire.write(0x00);
-  Wire.write(_inputGain);
+  Wire.write(_currentGain);
   Wire.endTransmission();
 }
 
 // 全チャンネルの音量設定
-// 0:最大, 96: ミュート
+// 0:最大音量, 96: ミュート
 void NJU72341::setVolumeAll(uint8_t newGain) {
   uint8_t bit = 119 - newGain - _attenuation;
   Wire.beginTransmission(_slaveAddress);
@@ -124,13 +137,16 @@ void NJU72341::setVolumeAll(uint8_t newGain) {
     Wire.write(bit);
   }
   Wire.endTransmission();
+  _currentVolume[0] = newGain;  //
+  _currentVolume[1] = newGain;  //
+  _currentVolume[2] = newGain;  //
+  _currentVolume[3] = newGain;  //
 }
 
 void NJU72341::setVolume_1B_2B(uint8_t newGain) {
-  if (_currentGain == newGain) {
+  if (_currentVolume[0] == newGain) {
     return;  // 変更なしのとき
   }
-  _currentGain = newGain;  //  -_attenuation;
   uint8_t bit = 119 - newGain;
 
   Wire.beginTransmission(_slaveAddress);
@@ -138,26 +154,86 @@ void NJU72341::setVolume_1B_2B(uint8_t newGain) {
   Wire.write(bit);
   Wire.write(bit);
   Wire.endTransmission();
+
+  _currentVolume[0] = newGain;  // 1ch
+  _currentVolume[1] = newGain;  // 2ch
 }
 
 void NJU72341::setVolume_3B_4B(uint8_t newGain) {
+  if (_currentVolume[2] == newGain) {
+    return;  // 変更なしのとき
+  }
   uint8_t bit = 119 - newGain;
+
   Wire.beginTransmission(_slaveAddress);
   Wire.write(0x03);
   Wire.write(bit);
   Wire.write(bit);
   Wire.endTransmission();
+
+  _currentVolume[2] = newGain;  // 3ch
+  _currentVolume[3] = newGain;  // 4ch
+}
+
+void NJU72341::setVolume_1B(uint8_t newGain) {
+  if (_currentVolume[0] == newGain) {
+    return;  // 変更なしのとき
+  }
+  uint8_t bit = 119 - newGain;
+  Wire.beginTransmission(_slaveAddress);
+  Wire.write(0x01);
+  Wire.write(bit);
+  Wire.endTransmission();
+  _currentVolume[0] = newGain;  // 1ch
+}
+
+void NJU72341::setVolume_2B(uint8_t newGain) {
+  if (_currentVolume[1] == newGain) {
+    return;  // 変更なしのとき
+  }
+  uint8_t bit = 119 - newGain;
+  Wire.beginTransmission(_slaveAddress);
+  Wire.write(0x02);
+  Wire.write(bit);
+  Wire.endTransmission();
+  _currentVolume[1] = newGain;  // 2ch
+}
+
+void NJU72341::setVolume_3B(uint8_t newGain) {
+  if (_currentVolume[2] == newGain) {
+    return;  // 変更なしのとき
+  }
+  uint8_t bit = 119 - newGain;
+  Wire.beginTransmission(_slaveAddress);
+  Wire.write(0x03);
+  Wire.write(bit);
+  Wire.endTransmission();
+  _currentVolume[2] = newGain;  // 3ch
+}
+
+void NJU72341::setVolume_4B(uint8_t newGain) {
+  if (_currentVolume[3] == newGain) {
+    return;  // 変更なしのとき
+  }
+  uint8_t bit = 119 - newGain;
+  Wire.beginTransmission(_slaveAddress);
+  Wire.write(0x04);
+  Wire.write(bit);
+  Wire.endTransmission();
+  _currentVolume[3] = newGain;  // 4ch
 }
 
 void NJU72341::mute() {
+  // Serial.printf("NJU72341::mute();\n");
+  // setVolume_1B_2B(96);
+  setVolume_3B_4B(96);
   _isMuted = true;
-  // digitalWrite(NJU72341_MUTE_PIN, HIGH);
-  setVolumeAll(96);
 }
 
 void NJU72341::unmute() {
-  setVolumeAll(0);
-  // digitalWrite(NJU72341_MUTE_PIN, LOW);
+  // Serial.printf("NJU72341::unmute();\n");
+  // setVolume_1B_2B(_attenuation);
+  setVolume_3B_4B(_attenuation);
   _isMuted = false;
 }
 
@@ -165,8 +241,8 @@ void NJU72341::setAVolume(uint8_t step) {
   if (step > FADEOUT_STEPS - 1) {
     step = FADEOUT_STEPS - 1;
   }
-  uint8_t data = NJU72341_db[step];
-  setVolumeAll(NJU72341_db[step]);
+  // setVolume_1B_2B(NJU72341_db[step] + _attenuation);
+  setVolume_3B_4B(NJU72341_db[step] + _attenuation);
 }
 
 NJU72341 nju72341 = NJU72341();

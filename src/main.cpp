@@ -41,19 +41,16 @@
 #include "vgm.h"
 
 void setup() {
-  // 最初にミュート
-  // pinMode(NJU72341_MUTE_PIN, OUTPUT);
-  // digitalWrite(NJU72341_MUTE_PIN, LOW);
-
+  disableCore0WDT();  // ウォッチドッグ0無効化
+  digitalWrite(D0, LOW);
   pinMode(D0, OUTPUT);
-  digitalWrite(D0, HIGH);
 
   Serial.begin(115200);
   Serial.printf("Heap - %'d Bytes free\n", ESP.getFreeHeap());
   Serial.printf("Flash - %'d Bytes at %'d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
   Serial.printf("PSRAM - Total %'d, Free %'d\n", ESP.getPsramSize(), ESP.getFreePsram());
 
-  disableCore0WDT();  // ウォッチドッグ0無効化
+  delay(100);
 
   // ディスプレイ初期化
   if (!initDisp()) {
@@ -85,7 +82,7 @@ void setup() {
 
   // I2C機器初期化
   // NJU72341/NJU72342 初期化
-  nju72341.init(ndConfig.get(CFG_FADEOUT), false);
+  nju72341.init(ndConfig.get(CFG_FADEOUT), true);
 
   // SI5351 初期化
   SI5351.begin();

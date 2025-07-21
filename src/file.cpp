@@ -171,7 +171,7 @@ bool NDFile::readFile(String path) {
 bool NDFile::filePlay(int count) {
   currentFile = mod(currentFile + count, files[currentDir].size());
   ndConfig.saveHistory();
-  return fileOpen(currentDir, currentFile);
+  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
 //----------------------------------------------------------------------
@@ -182,17 +182,17 @@ bool NDFile::dirPlay(int count) {
   currentFile = 0;
   currentDir = mod(currentDir + count, dirs.size());
   ndConfig.saveHistory();
-  return fileOpen(currentDir, currentFile, ndFile.getFolderAttenuation(dirs[currentDir]));
+  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
 //----------------------------------------------------------------------
 // 直接ファイル再生
 // 戻り値: 成功/不成功
-bool NDFile::play(uint16_t d, uint16_t f, int8_t att) {
+bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
   currentFile = f;
   currentDir = d;
   ndConfig.saveHistory();
-  return fileOpen(currentDir, currentFile, ndFile.getFolderAttenuation(dirs[currentDir]));
+  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
 //----------------------------------------------------------------------
@@ -200,7 +200,8 @@ bool NDFile::play(uint16_t d, uint16_t f, int8_t att) {
 // 戻り値: 成功/不成功
 // att: 音量減衰率 0 - 96 dB, -1 = 変更しない
 
-bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
+bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
+  Serial.printf("att value: %d\n", att);
   if (xSemaphoreTake(spFileOpen, 0) != pdTRUE) {
     Serial.printf("Semapho is already taken.\n");
     return false;
@@ -234,35 +235,33 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, int8_t att) {
 }
 
 //----------------------------------------------------------------------
-// フォルダの減衰量取得
-// 戻り値: 0 - 96 dB
-// 設定無ければ 0
-uint8_t NDFile::getFolderAttenuation(String path) {
+// 指定されたディレクトリ内の減衰指定 "att*" ファイルを調べて値を返す
+// 戻り値: 1 ~ 24
+uint8_t NDFile::getAttValueInDir(const String &dirPath) {
   bool isDir;
 
-  File dir = SD.open(path);
-  if (!dir) {
-    return 0;
+  File dir = SD.open(dirPath);
+  if (!dir || !dir.isDirectory()) {
+    return 0;  // ディレクトリが存在しない場合
   }
 
   while (1) {
     String filePath = dir.getNextFileName(&isDir);
-    if (filePath == "") return 0;
+    if (filePath == "") break;  // ファイルがなくなったら終了
 
     if (!isDir) {
       String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
-      if (fileName.substring(0, 3) == "att") {
-        int att = fileName.substring(3).toInt();
-        if (att > 0 && att <= 24) {
-          return att;
-        } else {
-          return 0;
+      if (fileName.startsWith("att")) {
+        String numberPart = fileName.substring(3);  // "att" の後ろを取得
+        uint8_t value = numberPart.toInt();
+        if (value > 0 && value <= 24) {
+          return value;
         }
       }
     }
   }
 
-  return 0;
+  return 0;  // 該当するファイルがない場合
 }
 
 // data access
@@ -271,7 +270,7 @@ u8_t NDFile::get_ui8() { return data[pos++]; }
 // 16 bit 返す
 u16_t NDFile::get_ui16() { return get_ui8() + (get_ui8() << 8); }
 // 24 bit 返す
-u32_t NDFile::get_ui24() { return get_ui8() + (get_ui8() << 8) + (get_ui8() << 16); }
+u32_t NDFile::get_ui24() { return get_ui8() + (get_ui8() << 16); }
 // 32 bit 返す
 u32_t NDFile::get_ui32() { return get_ui8() + (get_ui8() << 8) + (get_ui8() << 16) + (get_ui8() << 24); }
 // 指定場所の 8 bit 返す

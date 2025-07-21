@@ -110,6 +110,7 @@ typedef enum {
   SI5351_1536 = 1536000,
   SI5351_1789 = 1789772,
   SI5351_2000 = 2000000,
+  SI5351_2500 = 2500000,
   SI5351_2578 = 2578000,
   SI5351_3000 = 3000000,
   SI5351_3072 = 3072000,
@@ -143,7 +144,7 @@ class SI5351_cls {
   void setupMultisynth(uint8_t output, si5351PLL_t pllSource, uint32_t div, uint32_t num, uint32_t denom);
   void setupMultisynthInt(uint8_t output, si5351PLL_t pllSource, si5351MultisynthDiv_t div);
   void enableOutputs(bool enabled);
-  void setFreq(si5351Freq_t newFreq, uint8_t output = 0);
+  void setFreq(si5351Freq_t newFreq, uint8_t outputCh = 0);
 
  private:
   si5351Freq_t currentFreq0, currentFreq1;

@@ -1,4 +1,3 @@
-
 #include "vgm.h"
 
 #include <cassert>
@@ -163,7 +162,7 @@ bool VGM::ready() {
     }
   }
 
-  u32_t ym2203_clock = (version >= 0x151 && dataOffset >= 0x78) ? ndFile.get_ui32_at(0x44) : 0;
+  u32_t ym2203_clock = (version >= 0x151 && dataOffset >= 0x48) ? ndFile.get_ui32_at(0x44) : 0;
   if (ym2203_clock) {
     if (ym2203_clock & 0x40000000) {  // Dual YM2203
       si5351Freq_t tfreq = normalizeFreq(ym2203_clock, CHIP_YM2203_0);
@@ -197,8 +196,7 @@ bool VGM::ready() {
       chipNames.push_back(_formatChipName(tfreq, CHIP_YM2151));
     }
   }
-
-  u32_t ym3812_clock = ndFile.get_ui32_at(0x50);  // OPL2
+  u32_t ym3812_clock = (version >= 0x151 && dataOffset >= 0x54) ? ndFile.get_ui32_at(0x50) : 0;  // OPL2
   if (ym3812_clock) {
     if (clockSlot[CHIP_YM3812] != CLK_NONE) {
       si5351Freq_t tfreq = normalizeFreq(ym3812_clock, CHIP_YM3812);
@@ -211,7 +209,7 @@ bool VGM::ready() {
     }
   }
 
-  u32_t ym3526_clock = ndFile.get_ui32_at(0x54);  // OPL
+  u32_t ym3526_clock = (version >= 0x151 && dataOffset >= 0x58) ? ndFile.get_ui32_at(0x54) : 0;  // OPL
   if (ym3526_clock) {
     if (clockSlot[CHIP_YM3526] != CLK_NONE) {  //
       si5351Freq_t tfreq = normalizeFreq(ym3526_clock, CHIP_YM3526);
@@ -228,7 +226,7 @@ bool VGM::ready() {
     }
   }
 
-  u32_t y8950_clock = ndFile.get_ui32_at(0x58);  // Y8950
+  u32_t y8950_clock = (version >= 0x151 && dataOffset >= 0x5C) ? ndFile.get_ui32_at(0x58) : 0;  // Y8950
   if (y8950_clock) {
     if (clockSlot[CHIP_YMF262] != CLK_NONE) {  // Use YMF262 as Y8950
       si5351Freq_t tfreq = normalizeFreq(y8950_clock, CHIP_YMF262);
@@ -237,8 +235,12 @@ bool VGM::ready() {
     }
   }
 
-  u32_t ymf262_clock = ndFile.get_ui32_at(0x5c);  // OPL3
+  u32_t ymf262_clock = (version >= 0x151 && dataOffset >= 0x60) ? ndFile.get_ui32_at(0x5c) : 0;  // OPL3
+  Serial.printf("version: %x\n", version);
+  Serial.printf("dataOffset: %x\n", dataOffset);
+  // Serial.printf("ymf262_clock: %d (0x%08x)\n", ymf262_clock, ymf262_clock);
   if (ymf262_clock) {
+    // Serial.printf("YMF262 clock detected: %.3f MHz\n", (double)ymf262_clock / 1000000.0);
     if (clockSlot[CHIP_YMF262] != CLK_NONE) {
       si5351Freq_t tfreq = normalizeFreq(ymf262_clock, CHIP_YMF262);
       freq[clockSlot[CHIP_YMF262]] = tfreq;
@@ -343,6 +345,9 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
   switch (chip) {
     case CHIP_AY8910: {
       switch (freq) {
+        case 1250000:
+          return SI5351_1250;
+          break;
         case 1500000:
           return SI5351_3000;
           break;
@@ -384,6 +389,9 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
     case CHIP_YM2203_0:
     case CHIP_YM2203_1: {
       switch (freq) {
+        case 1250000:  // 1.25MHz
+          return SI5351_1250;
+          break;
         case 1500000:     // 1.5MHz
         case 1076741824:  // デュアル 1.5MHz
         case 1075241824:  // デュアル 1.5MHz
@@ -681,6 +689,9 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       if ((reg >= 0x30 && reg <= 0xB6) || reg == 0x22 || reg == 0x27 || reg == 0x28 || reg == 0x2A || reg == 0x2B) {
         FM.setYM2612(0, reg, dat, 0);
+        // チップ2が有効な場合でも、ここでチップ2へ書き込まないようにする
+        // もしチップ2への書き込みが必要な場合は、別途制御を追加してください
+        // 例: if (chipSlot[CHIP2] != CHIP_NONE) { /* FM.setYM2612(2, reg, dat, 0); */ }
       }
       break;
 
@@ -711,7 +722,6 @@ void VGM::vgmProcessMain() {
       FM.setRegister(reg, dat, 0);
 #endif
       break;
-
     case 0xA5:  // YM2203_1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
@@ -743,12 +753,12 @@ void VGM::vgmProcessMain() {
     case 0x5E:  // YMF262 Reg Array 0
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPL3(0, reg, dat, 1);
+      FM.setRegisterOPL3(0, reg, dat, 2);
       break;
     case 0x5F:  // YMF262 Reg Array 1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegisterOPL3(1, reg, dat, 1);
+      FM.setRegisterOPL3(1, reg, dat, 2);
       break;
 #endif
 
@@ -1374,8 +1384,6 @@ bool VGM::_xgm2ProcessYM() {
 
     case FM_TL: {
       u8_t data1 = ndFile.get_ui8_at(_xgm2_ym_pos++);
-      // compute reg
-      reg = 0x40 + (_getYMSlot(command) << 2) + channel;
       // save state
       _xgmYmState[port][reg] = (data1 >> 1) & 0x7F;
       // create commands
