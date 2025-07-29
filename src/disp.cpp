@@ -54,7 +54,7 @@ LGFX::LGFX(void) {
     cfg.rgb_order = false;     // パネルの赤と青が入れ替わってしまう場合 trueに設定
     cfg.dlen_16bit = false;    // 16bitパラレルやSPIでデータ長を16bit単位で送信するパネルの場合
                                // trueに設定
-    cfg.bus_shared = true;     // SDカードとバスを共有している場合
+    cfg.bus_shared = false;    // SDカードとバスを共有している場合
                                // trueに設定(drawJpgFile等でバス制御を行います)
 
     _panel_instance.config(cfg);
