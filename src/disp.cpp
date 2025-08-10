@@ -49,7 +49,7 @@ LGFX::LGFX(void) {
     cfg.offset_rotation = 2;   // 回転方向の値のオフセット 0~7 (4~7は上下反転)
     cfg.dummy_read_pixel = 8;  // ピクセル読出し前のダミーリードのビット数
     cfg.dummy_read_bits = 1;   // ピクセル以外のデータ読出し前のダミーリードのビット数
-    cfg.readable = false;      // データ読出しが可能な場合 trueに設定
+    cfg.readable = true;       // データ読出しが可能な場合 trueに設定
     cfg.invert = true;         // パネルの明暗が反転してしまう場合 trueに設定
     cfg.rgb_order = false;     // パネルの赤と青が入れ替わってしまう場合 trueに設定
     cfg.dlen_16bit = false;    // 16bitパラレルやSPIでデータ長を16bit単位で送信するパネルの場合
@@ -212,9 +212,9 @@ void dispTimerHandler(void* param) {
   }
 
   // 画面更新停止か
-  if (ndConfig.get(CFG_UPDATE) == UPDATE_NO) {
-    return;
-  }
+  // if (ndConfig.get(CFG_UPDATE) == UPDATE_NO) {
+  //  return;
+  //}
 
   if (!_stopTimerDrawing) {
     if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
@@ -224,7 +224,7 @@ void dispTimerHandler(void* param) {
       lblSystem.update();
       xSemaphoreGive(spFrameBuffer);
     }
-    uint64_t sec = vgm.getCurrentTime();
+    uint64_t sec = vgm.getCurrentTimeSec();
     if (_dispData.time != sec) {
       updateHeader(sec);
       _dispData.time = sec;
@@ -281,13 +281,13 @@ void redraw() {
     render.printf("%02d/%02d", _dispData.no, _dispData.maxFiles);
   }
 
-  if (ndConfig.get(CFG_UPDATE) == UPDATE_YES) {
-    render.setAlignment(Align::TopCenter);
-    render.setFontSize(14);
-    render.setFontColor(C_LIGHTGRAY, C_HEADER);
-    render.setCursor(LCD_W / 2, 4);
-    render.printf("%d:%02d", (uint8_t)(_dispData.time / 60), (uint8_t)(_dispData.time % 60));
-  }
+  // if (ndConfig.get(CFG_UPDATE) == UPDATE_YES) {
+  render.setAlignment(Align::TopCenter);
+  render.setFontSize(14);
+  render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  render.setCursor(LCD_W / 2, 4);
+  render.printf("%d:%02d", (uint8_t)(_dispData.time / 60), (uint8_t)(_dispData.time % 60));
+  //}
 
   render.setFontSize(13);
   render.setFontColor(C_ORANGE, C_HEADER);
@@ -423,6 +423,7 @@ bool initDisp() {
   lcd.init();
   lcd.setRotation(0);
   lcd.fillScreen(C_BASEBG);
+  lcd.endWrite();
 
   // 再描画用セマフォ
   spFrameBuffer = xSemaphoreCreateBinary();

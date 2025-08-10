@@ -93,7 +93,7 @@ typedef enum {
 } t_chip;
 
 // クロック使用番号
-typedef enum { CLK_0, CLK_1, CLK_2, CLK_NONE } t_clockSlot;
+typedef enum { CLK_0, CLK_1, CLK_2, CLK_NONE, CLK_FIXED } t_clockSlot;
 
 // チップ名
 const std::vector<String> CHIP_LABEL = {"",       "SN76489", "SN76489", "YM2413", "YM2612", "YM2151", "YM2203",
@@ -139,7 +139,7 @@ class VGM {
   void xgmProcess();
   void xgm2Process();
 #endif
-  u64_t getCurrentTime();
+  u64_t getCurrentTimeSec();
 
  private:
   t_gd3 gd3;

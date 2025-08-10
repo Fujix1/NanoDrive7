@@ -301,7 +301,7 @@ void FMChip::setRegister(byte addr, byte data, int chipno = 0) {
       CS3_HIGH;
       break;
   }
-  ets_delay_us(17);  // 最低17
+  ets_delay_us(19);  // 最低17
 }
 
 // 　YM2151用レジスタ設定(最適化済)

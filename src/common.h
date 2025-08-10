@@ -32,7 +32,7 @@
 #define CHIP0_CLOCK CLK_0
 #define CHIP1_CLOCK CLK_0
 #define CHIP2_CLOCK CLK_1
-#define CHIP3_CLOCK CLK_1
+#define CHIP3_CLOCK CLK_FIXED
 
 #define USE_YM2203_0
 #define USE_YM2203_1
@@ -50,11 +50,11 @@
 
 // DISPLAY
 #define TITLE_DEVIDER " *** "
-#define SCROLL_SPEED_TITLE .8F   // 文字スクロール速度 px
-#define SCROLL_SPEED_GAME .6F    // 文字スクロール速度 px
-#define SCROLL_SPEED_AUTHOR .4F  // 文字スクロール速度 px
-#define SCROLL_DELAY 2000        // スクロール開始までのディレイ ms
-#define DISP_TIMER_INTERVAL 20   // ms 表示更新タイマー間隔
+#define SCROLL_SPEED_TITLE .7F    // 文字スクロール速度 px
+#define SCROLL_SPEED_GAME .5F     // 文字スクロール速度 px
+#define SCROLL_SPEED_AUTHOR .35F  // 文字スクロール速度 px
+#define SCROLL_DELAY 2000         // スクロール開始までのディレイ ms
+#define DISP_TIMER_INTERVAL 16    // ms 表示更新タイマー間隔
 
 // SD Card
 #define SD_CS 7

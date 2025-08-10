@@ -251,9 +251,11 @@ bool VGM::ready() {
   // 周波数設定
   if (freq[0] != SI5351_UNDEFINED) {
     SI5351.setFreq(freq[0], 0);
+    Serial.printf("freq0: %d\n", freq[0]);
   }
   if (freq[1] != SI5351_UNDEFINED) {
     SI5351.setFreq(freq[1], 1);
+    Serial.printf("freq1: %d\n", freq[1]);
   }
   /*if (freq[2] != SI5351_UNDEFINED) {
     SI5351.setFreq(freq[2], 0);
@@ -285,6 +287,7 @@ bool VGM::ready() {
 // チップ名のフォーマット
 String VGM::_formatChipName(si5351Freq_t freq, t_chip chip) {
   char buf[10];
+
   if (freq != SI5351_UNDEFINED) {
     snprintf(buf, sizeof(buf), "%.4f", (double)freq / 1000000.0);
     buf[5] = '\0';
@@ -808,7 +811,11 @@ void VGM::vgmProcessMain() {
       FM.setYM2612DAC(ndFile.data[_pcmpos++], 0);
       _vgmSamples += (command & 15);
       break;
-
+    case 0xd0:           // ignore YM278B
+      ndFile.get_ui8();  // port
+      ndFile.get_ui8();  // value
+      ndFile.get_ui8();  // reg
+      break;
     case 0x90:
       // Setup Stream Control
       // get_vgm_ui32();
@@ -1774,7 +1781,7 @@ void VGM::endProcedure() {
   }
 }
 
-u64_t VGM::getCurrentTime() {
+u64_t VGM::getCurrentTimeSec() {
   if (_vgmSamples >= 264600000) _vgmSamples = 0;
   return _vgmSamples / 44100;
 }

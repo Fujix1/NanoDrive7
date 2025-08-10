@@ -35,9 +35,9 @@
 class LGFX : public lgfx::LGFX_Device {
  private:
   lgfx::Panel_ST7789 _panel_instance;
-  lgfx::Bus_SPI _bus_instance;
 
  public:
+  lgfx::Bus_SPI _bus_instance;
   LGFX(void);
 };
 
