@@ -42,7 +42,7 @@
 
 void setup() {
   disableCore0WDT();  // ウォッチドッグ0無効化
-  digitalWrite(D0, LOW);
+  digitalWrite(D0, HIGH);
   pinMode(D0, OUTPUT);
 
   Serial.begin(115200);

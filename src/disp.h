@@ -90,6 +90,16 @@ class Label {
 
 // 設定画面クラス
 class CFGWindow {
+ private:
+  LGFX_Sprite _sprite;
+  LGFX_Sprite _sprFooter;
+  // 言語別ヘッダー用スプライト
+  LGFX_Sprite _sprHeaderJP;
+  LGFX_Sprite _sprHeaderEN;
+
+  // ヘッダースプライトの初期化
+  void initHeaders();
+
  public:
   bool isVisible = false;
   int currentItemIndex = 0;
@@ -97,18 +107,13 @@ class CFGWindow {
   void init();
   void show();
   void close();
+  void draw();
+  void drawItem(int index, bool toFrameBuffer);
+  void drawFooter(bool toFrameBuffer);
   void up();
   void down();
   void left();
   void right();
-
-  void draw();
-  void drawItem(int index, bool toFrameBuffer);
-  void drawFooter(bool toFrameBuffer);
-
- private:
-  LGFX_Sprite _sprite;
-  LGFX_Sprite _sprFooter;
 };
 
 extern CFGWindow cfgWindow;

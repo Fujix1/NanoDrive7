@@ -639,12 +639,50 @@ void CFGWindowEventLoop(void* pvPrams) {
   }
 }
 
+void CFGWindow::initHeaders() {
+  // スプライトが既に初期化されているかチェック
+  if (_sprHeaderJP.width() > 0 && _sprHeaderEN.width() > 0) return;
+
+  // 日本語ヘッダー作成
+  _sprHeaderJP.setPsram(false);  // ヘッダーは小さいのでPSRAM不要
+  _sprHeaderJP.createSprite(LCD_W, 26);
+  _sprHeaderJP.fillSprite(C_HEADER);
+  _sprHeaderJP.pushImage(146, 3, CFG_ICON_WIDTH, CFG_ICON_HEIGHT, cfgIcon);
+
+  render.setDrawer(_sprHeaderJP);
+  render.setAlignment(Align::TopLeft);
+  render.loadFont(fontMain, sizeof(fontMain));
+  render.setFontSize(17);
+  render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  render.setCursor(6, 4);
+  render.printf("設定");
+  render.unloadFont();
+
+  // 英語ヘッダー作成
+  _sprHeaderEN.setPsram(false);  // ヘッダーは小さいのでPSRAM不要
+  _sprHeaderEN.createSprite(LCD_W, 26);
+  _sprHeaderEN.fillSprite(C_HEADER);
+  _sprHeaderEN.pushImage(146, 3, CFG_ICON_WIDTH, CFG_ICON_HEIGHT, cfgIcon);
+
+  render.setDrawer(_sprHeaderEN);
+  render.setAlignment(Align::TopLeft);
+  render.loadFont(nimbusBold, sizeof(nimbusBold));
+  render.setFontSize(16);
+  render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  render.setCursor(6, 5);
+  render.printf("Settings");
+  render.unloadFont();
+}
+
 void CFGWindow::init() {
-  // キュ～作成
+  // キュー作成
   xQueueCFGWindow = xQueueCreate(2, sizeof(cfgEvent));
   xTaskCreateUniversal(CFGWindowEventLoop, "CFG", 13192, NULL, 1, &tskCFGEventLoop, PRO_CPU_NUM);
   _sprite.createSprite(LCD_W, ITEM_HEIGHT);
   _sprFooter.createSprite(120, 23);
+
+  // ヘッダーの初期化
+  initHeaders();
 }
 
 void CFGWindow::show() {
@@ -697,8 +735,13 @@ void CFGWindow::draw() {
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
 
   frameBuffer.fillSprite(TFT_WHITE);
-  frameBuffer.fillRect(0, 0, LCD_W, 26, C_HEADER);
-  frameBuffer.pushImage(146, 3, CFG_ICON_WIDTH, CFG_ICON_HEIGHT, cfgIcon);
+
+  // 事前作成したヘッダーを使用
+  if (ndConfig.get(CFG_LANG) == LANG_JA) {
+    _sprHeaderJP.pushSprite(&frameBuffer, 0, 0);
+  } else {
+    _sprHeaderEN.pushSprite(&frameBuffer, 0, 0);
+  }
 
   frameBuffer.fillRoundRect(124, 293, 42, 23, 2, C_FOOTER_ACTIVE);
 
@@ -709,15 +752,11 @@ void CFGWindow::draw() {
   if (ndConfig.get(CFG_LANG) == LANG_JA) {
     render.loadFont(fontMain, sizeof(fontMain));
     render.setFontSize(17);
-    render.setCursor(6, 4);
-    render.printf("設定");
     render.setCursor(130, 297);
     render.printf("戻る");
   } else {
     render.loadFont(nimbusBold, sizeof(nimbusBold));
     render.setFontSize(16);
-    render.setCursor(6, 5);
-    render.printf("Settings");
     render.setCursor(133, 298);
     render.printf("OK");
   }

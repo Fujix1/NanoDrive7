@@ -170,6 +170,10 @@ bool NDFile::readFile(String path) {
 // 戻り値: 成功/不成功
 bool NDFile::filePlay(int count) {
   currentFile = mod(currentFile + count, files[currentDir].size());
+
+  nju72341.mute();
+  nju72341.resetFadeout();
+
   ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
@@ -181,6 +185,10 @@ bool NDFile::filePlay(int count) {
 bool NDFile::dirPlay(int count) {
   currentFile = 0;
   currentDir = mod(currentDir + count, dirs.size());
+
+  nju72341.mute();
+  nju72341.resetFadeout();
+
   ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
@@ -191,6 +199,10 @@ bool NDFile::dirPlay(int count) {
 bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
   currentFile = f;
   currentDir = d;
+
+  nju72341.mute();
+  nju72341.resetFadeout();
+
   ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
@@ -201,7 +213,7 @@ bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
 // att: 音量減衰率 0 - 96 dB, -1 = 変更しない
 
 bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
-  Serial.printf("att value: %d\n", att);
+  Serial.printf("Folder attenuation : %d dB\n", att);
   if (xSemaphoreTake(spFileOpen, 0) != pdTRUE) {
     Serial.printf("Semapho is already taken.\n");
     return false;
