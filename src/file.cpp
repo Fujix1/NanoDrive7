@@ -80,7 +80,10 @@ void NDFile::listDir(const char *dirname) {
   dirName = root.getNextFileName(&isDir);
   while (dirName != "") {
     if (isDir) {
-      if (dirName != "/System Volume Information") {
+      // システム・不可視ディレクトリ除外
+      String baseDir = dirName.substring(dirName.lastIndexOf("/") + 1);
+
+      if (baseDir != "System Volume Information" && baseDir != "__MACOSX" && !baseDir.startsWith(".")) {
         // ディレクトリ内の有効ファイルチェック
         File dir = SD.open(dirName);
         int validFileCount = 0;
@@ -88,12 +91,17 @@ void NDFile::listDir(const char *dirname) {
           filename = dir.getNextFileName(&isDir);
           if (filename == "") break;
           if (isDir) break;
+
+          String baseFile = filename.substring(filename.lastIndexOf("/") + 1);
           String ext = filename.substring(filename.length() - 4);
           if (ext.equalsIgnoreCase(".vgm")) {
             validFileCount++;
-          } else if (ext.equalsIgnoreCase(".xgm")) {
+          }
+#ifdef USE_XGM
+          else if (ext.equalsIgnoreCase(".xgm")) {
             validFileCount++;
           }
+#endif
         }
         dir.close();
 
@@ -125,10 +133,14 @@ void NDFile::listDir(const char *dirname) {
         if (ext.equalsIgnoreCase(".vgm")) {
           totalSongs++;
           files[i].push_back(filename.substring(dirs[i].length() + 1));
-        } else if (ext.equalsIgnoreCase(".xgm")) {
+        }
+#ifdef USE_XGM
+        else if (ext.equalsIgnoreCase(".xgm")) {
           totalSongs++;
           files[i].push_back(filename.substring(dirs[i].length() + 1));
-        } else if (ext == ".png") {
+        }
+#endif
+        else if (ext == ".png") {
           pngs[i] = filename.substring(dirs[i].length() + 1);
         }
       }
@@ -170,11 +182,6 @@ bool NDFile::readFile(String path) {
 // 戻り値: 成功/不成功
 bool NDFile::filePlay(int count) {
   currentFile = mod(currentFile + count, files[currentDir].size());
-
-  nju72341.mute();
-  nju72341.resetFadeout();
-
-  ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
@@ -185,11 +192,6 @@ bool NDFile::filePlay(int count) {
 bool NDFile::dirPlay(int count) {
   currentFile = 0;
   currentDir = mod(currentDir + count, dirs.size());
-
-  nju72341.mute();
-  nju72341.resetFadeout();
-
-  ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
@@ -199,11 +201,6 @@ bool NDFile::dirPlay(int count) {
 bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
   currentFile = f;
   currentDir = d;
-
-  nju72341.mute();
-  nju72341.resetFadeout();
-
-  ndConfig.saveHistory();
   return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
 }
 
@@ -213,14 +210,16 @@ bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
 // att: 音量減衰率 0 - 96 dB, -1 = 変更しない
 
 bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
+  nju72341.mute();
+  nju72341.resetFadeout();
+  ndConfig.saveHistory();
+
   Serial.printf("Folder attenuation : %d dB\n", att);
   if (xSemaphoreTake(spFileOpen, 0) != pdTRUE) {
     Serial.printf("Semapho is already taken.\n");
     return false;
   }
 
-  nju72341.mute();
-  nju72341.resetFadeout();
   FM.reset();
 
   String st = dirs[d] + "/" + files[d][f];
