@@ -19,10 +19,10 @@ class NDFile {
   bool readFile(String path);
   bool filePlay(int count);
   bool dirPlay(int count);
-  bool play(u16_t d, u16_t f, u8_t att = 0);
-  bool fileOpen(u16_t d, u16_t f, u8_t att = 0);
+  bool play(u16_t d, u16_t f);
+  bool fileOpen(u16_t d, u16_t f);
 
-  u8_t getAttValueInDir(const String &dirPath);  // フォルダの音量減衰取得
+  void getAttValueInDir(const String &dirPath);  // フォルダの音量減衰取得
 
   u16_t currentDir;      // 現在のディレクトリ
   u16_t currentFile;     // 現在のファイル
@@ -45,6 +45,9 @@ class NDFile {
   u32_t get_ui32_at(u32_t p);
 
  private:
+  u8_t _att;     // 現在のフォルダの全体減衰量 db
+  u8_t _attFM;   // 現在のフォルダの YM2203 FM の減衰量 db
+  u8_t _attSSG;  // 現在のフォルダの YM2203 SSG の減衰量 db
 };
 
 extern NDFile ndFile;

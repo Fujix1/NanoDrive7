@@ -101,9 +101,7 @@ void NJU72341::startFadeout() {
 
 // att 減衰量dB:
 void NJU72341::reset(u8_t att) {
-  if (att >= 0) {
-    _attenuation = att;
-  }
+  _attenuation = att;
   fadeOutStatus = FADEOUT_BEFORE;
   resetFadeout();
 }

@@ -14,6 +14,10 @@ bool NDFile::init() {
   currentDir = 0;
   currentFile = 0;
 
+  _att = 0;
+  _attFM = 0;
+  _attSSG = 0;
+
   // セマフォ作成
   spFileOpen = xSemaphoreCreateBinary();
   xSemaphoreGive(spFileOpen);
@@ -182,7 +186,7 @@ bool NDFile::readFile(String path) {
 // 戻り値: 成功/不成功
 bool NDFile::filePlay(int count) {
   currentFile = mod(currentFile + count, files[currentDir].size());
-  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
+  return fileOpen(currentDir, currentFile);
 }
 
 //----------------------------------------------------------------------
@@ -192,29 +196,32 @@ bool NDFile::filePlay(int count) {
 bool NDFile::dirPlay(int count) {
   currentFile = 0;
   currentDir = mod(currentDir + count, dirs.size());
-  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
+  return fileOpen(currentDir, currentFile);
 }
 
 //----------------------------------------------------------------------
 // 直接ファイル再生
 // 戻り値: 成功/不成功
-bool NDFile::play(uint16_t d, uint16_t f, uint8_t att) {
+bool NDFile::play(uint16_t d, uint16_t f) {
   currentFile = f;
   currentDir = d;
-  return fileOpen(currentDir, currentFile, ndFile.getAttValueInDir(dirs[currentDir]));
+  return fileOpen(currentDir, currentFile);
 }
 
 //----------------------------------------------------------------------
 // ディレクトリ番号＋ファイル番号でファイルを開く
 // 戻り値: 成功/不成功
-// att: 音量減衰率 0 - 96 dB, -1 = 変更しない
 
-bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
+bool NDFile::fileOpen(uint16_t d, uint16_t f) {
   nju72341.mute();
   nju72341.resetFadeout();
   ndConfig.saveHistory();
+  ndFile.getAttValueInDir(dirs[d]);
 
-  Serial.printf("Folder attenuation : %d dB\n", att);
+  Serial.printf("Folder attenuation : %d dB\n", _att);
+  Serial.printf("YM2203 FM attenuation : %d dB\n", _attFM);
+  Serial.printf("YM2203 SSG attenuation : %d dB\n", _attSSG);
+
   if (xSemaphoreTake(spFileOpen, 0) != pdTRUE) {
     Serial.printf("Semapho is already taken.\n");
     return false;
@@ -238,7 +245,7 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
     }
 #endif
   }
-  nju72341.reset(att);
+  nju72341.reset(_att);
   xSemaphoreGive(spFileOpen);
   nju72341.unmute();
 
@@ -247,32 +254,47 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f, uint8_t att) {
 
 //----------------------------------------------------------------------
 // 指定されたディレクトリ内の減衰指定 "att*" ファイルを調べて値を返す
-// 戻り値: 1 ~ 24
-uint8_t NDFile::getAttValueInDir(const String &dirPath) {
+// 戻り値: 0 ~ 24
+void NDFile::getAttValueInDir(const String &dirPath) {
   bool isDir;
+  _att = 0;
+  _attFM = 0;
+  _attSSG = 0;
 
   File dir = SD.open(dirPath);
   if (!dir || !dir.isDirectory()) {
-    return 0;  // ディレクトリが存在しない場合
+    return;
   }
 
   while (1) {
     String filePath = dir.getNextFileName(&isDir);
-    if (filePath == "") break;  // ファイルがなくなったら終了
+    if (filePath == "") break;
 
     if (!isDir) {
       String fileName = filePath.substring(filePath.lastIndexOf("/") + 1);
       if (fileName.startsWith("att")) {
-        String numberPart = fileName.substring(3);  // "att" の後ろを取得
+        String numberPart = fileName.substring(3);
         uint8_t value = numberPart.toInt();
         if (value > 0 && value <= 24) {
-          return value;
+          _att = value;
+        }
+      } else if (fileName.startsWith("fm_att")) {
+        String numberPart = fileName.substring(6);
+        uint8_t value = numberPart.toInt();
+        if (value > 0 && value <= 24) {
+          _attFM = value;
+        }
+      } else if (fileName.startsWith("ssg_att")) {
+        String numberPart = fileName.substring(7);
+        uint8_t value = numberPart.toInt();
+        if (value > 0 && value <= 24) {
+          _attSSG = value;
         }
       }
     }
   }
-
-  return 0;  // 該当するファイルがない場合
+  dir.close();
+  return;
 }
 
 // data access

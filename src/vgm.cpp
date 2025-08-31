@@ -8,10 +8,6 @@
 #include "file.h"
 #include "fm.h"
 
-#define ONE_CYCLE \
-  22675.737f  // 22.67573696145125 us
-              // 1 / 44100 * 1 000 000
-
 //---------------------------------------------------------------------
 static std::string wstringToUTF8(const std::wstring& src) {
   std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
@@ -326,6 +322,12 @@ String VGM::_digGD3() {
     _gd3p += 2;
   }
   _gd3p += 2;
+
+  // 全角スペース(U+3000)を半角スペース(U+0020)に置換
+  for (auto& c : wst) {
+    if (c == 0x3000) c = 0x20;
+  }
+
   std::string sst = wstringToUTF8(wst);
   return (String)sst.c_str();
 }
@@ -638,7 +640,7 @@ void VGM::vgmProcess() {
   _vgmWaitUntil = _vgmStart + _vgmRealSamples * 22.67573696145125;
 
   while (_vgmWaitUntil > micros64()) {
-    // ets_delay_us(1);
+    ets_delay_us(22);
   }
 }
 
