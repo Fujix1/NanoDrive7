@@ -271,9 +271,10 @@ bool VGM::ready() {
   }
 
   u32_t n = 1 + ndFile.currentFile;  // フォルダ内曲番
-  updateDisp({gd3.trackEn, gd3.trackJp, gd3.gameEn, gd3.gameJp, gd3.systemEn, gd3.systemJp, gd3.authorEn, gd3.authorJp,
-              gd3.date, chipNames[0], chipNames[1], FORMAT_LABEL[vgm.format], 0, n,
-              ndFile.files[ndFile.currentDir].size()});
+  // 表示更新
+  disp.updateDisp({gd3.trackEn, gd3.trackJp, gd3.gameEn, gd3.gameJp, gd3.systemEn, gd3.systemJp, gd3.authorEn,
+                   gd3.authorJp, gd3.date, chipNames[0], chipNames[1], FORMAT_LABEL[vgm.format], 0, n,
+                   ndFile.files[ndFile.currentDir].size()});
 
   _vgmStart = micros64();
   return true;

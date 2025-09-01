@@ -69,26 +69,25 @@ static LGFX_Sprite sprPng(&lcd);
 static LGFX_Sprite sprPngResized(&lcd);
 static String lastPNGPath = "";
 
-static OpenFontRender render;
 static TimerHandle_t hDispTimer;
-static int currentPage = 0;
 
 static Label lblTitle = Label(0, 28, LCD_W, C_ACCENT_LIGHT, C_BASEBG, 20, SCROLL_SPEED_TITLE, Align::TopCenter);
 static Label lblGame = Label(0, 53, LCD_W, C_LIGHTGRAY, C_BASEBG, 15, SCROLL_SPEED_GAME, Align::TopCenter);
 static Label lblAuthor = Label(28, 233, LCD_W - 28, C_GRAY, C_BASEBG, 16, SCROLL_SPEED_AUTHOR, Align::TopLeft);
 static Label lblSystem = Label(28, 211, LCD_W - 28, C_GRAY, C_BASEBG, 16, SCROLL_SPEED_AUTHOR, Align::TopLeft);
 
-static tDispData _dispData;
 static SemaphoreHandle_t spFrameBuffer;  // 描画用セマフォ
 static QueueHandle_t xQueueCFGWindow;
 static TaskHandle_t tskCFGEventLoop;
 
+/* 未使用。Core0描画用。不要なら削除可。
 void redrawOnCore0Task(void* pvParameters) {
-  redraw();
+  disp.redraw();
   vTaskDelete(NULL);
 }
 
 void redrawOnCore0() { xTaskCreateUniversal(redrawOnCore0Task, "task", 8192, NULL, 1, NULL, PRO_CPU_NUM); }
+*/
 
 //---------------------------------------------------------------------------
 // Scrolling label class
@@ -184,30 +183,9 @@ void pngDraw(PNGDRAW* pDraw) {
 }
 
 //---------------------------------------------------------------------------
-// Draw header info
-static LGFX_Sprite sprHeader(&lcd);
-void updateHeader(uint64_t sec) {
-  if (xSemaphoreTake(spFrameBuffer, portMAX_DELAY) == pdTRUE) {
-    sprHeader.createSprite(70, 14);
-    sprHeader.fillSprite(C_HEADER);
-    render.setDrawer(sprHeader);
-    render.setAlignment(Align::TopCenter);
-    render.loadFont(nimbusBold, sizeof(nimbusBold));
-    render.setFontSize(14);
-    render.setFontColor(TFT_WHITE);
-    render.setCursor(35, 0);
-    render.printf("%d:%02d", (uint8_t)(sec / 60), (uint8_t)(sec % 60));
-    render.unloadFont();
-    sprHeader.pushSprite(50, 4);
-    sprHeader.deleteSprite();
-    xSemaphoreGive(spFrameBuffer);
-  }
-}
-
-//---------------------------------------------------------------------------
 // Timer Handler
 void dispTimerHandler(void* param) {
-  if (cfgWindow.isVisible) {
+  if (disp.currentView != ViewMode::Player) {
     return;
   }
 
@@ -225,229 +203,12 @@ void dispTimerHandler(void* param) {
       xSemaphoreGive(spFrameBuffer);
     }
     uint64_t sec = vgm.getCurrentTimeSec();
-    if (_dispData.time != sec) {
-      updateHeader(sec);
-      _dispData.time = sec;
+    if (disp.dispData.time != sec) {
+      disp.updateHeader(sec);
+      disp.dispData.time = sec;
     }
   }
 }
-
-// 背景描画
-void drawBG() {
-  frameBuffer.fillSprite(C_BASEBG);
-  frameBuffer.fillRect(0, 0, LCD_W, 19, C_HEADER);
-  // frameBuffer.fillRect(0, 75, LCD_W, 125, C_DARK);
-  frameBuffer.fillRoundRect(1, 279, LCD_W - 2, 40, 2, C_DARK);
-  frameBuffer.pushImage(8, 211, ICONS_WIDTH, ICONS_HEIGHT, icons);
-  frameBuffer.fillRoundRect(6, 283, 17, 14, 2, C_FOOTER_ACTIVE);
-  frameBuffer.fillRoundRect(6, 301, 17, 14, 2, C_FOOTER_ACTIVE);
-}
-
-// プレーヤー描画
-void redraw() {
-  xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
-  _stopTimerDrawing = true;
-  drawBG();
-  render.setUseRenderTask(false);
-  render.setDrawer(frameBuffer);
-  render.setAlignment(Align::TopLeft);
-
-  render.loadFont(fontMain, sizeof(fontMain));
-  render.setFontSize(16);
-  render.setFontColor(C_GRAY, C_BASEBG);
-  render.setCursor(27, 256);
-  render.printf(_dispData.date.c_str());
-  render.unloadFont();
-
-  render.loadFont(nimbusBold, sizeof(nimbusBold));
-  render.setFontSize(13);
-  render.setFontColor(C_YELLOW, C_DARK);
-  render.setCursor(27, 284);
-  render.printf(_dispData.chip0.c_str());
-  render.setCursor(27, 303);
-  render.printf(_dispData.chip1.c_str());
-
-  render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
-  render.setCursor(11, 284);
-  render.printf("1");
-  render.setCursor(11, 303);
-  render.printf("2");
-
-  if (_dispData.no != 0 && _dispData.maxFiles != 0) {
-    render.setFontSize(14);
-    render.setFontColor(C_GRAY, C_HEADER);
-    render.setCursor(167, 4);
-    render.setAlignment(Align::TopRight);
-    render.printf("%02d/%02d", _dispData.no, _dispData.maxFiles);
-  }
-
-  // if (ndConfig.get(CFG_UPDATE) == UPDATE_YES) {
-  render.setAlignment(Align::TopCenter);
-  render.setFontSize(14);
-  render.setFontColor(C_LIGHTGRAY, C_HEADER);
-  render.setCursor(LCD_W / 2, 4);
-  render.printf("%d:%02d", (uint8_t)(_dispData.time / 60), (uint8_t)(_dispData.time % 60));
-  //}
-
-  render.setFontSize(13);
-  render.setFontColor(C_ORANGE, C_HEADER);
-  render.setCursor(4, 4);
-  render.setAlignment(Align::TopLeft);
-  render.printf(_dispData.type.c_str());
-  render.unloadFont();
-
-  if (ndConfig.get(CFG_LANG) == LANG_JA) {
-    lblTitle.setCaption(_dispData.trackJp);
-    lblGame.setCaption(_dispData.gameJp);
-    lblAuthor.setCaption(_dispData.authorJp);
-    lblSystem.setCaption(_dispData.systemJp);
-  } else {
-    lblTitle.setCaption(_dispData.trackEn);
-    lblGame.setCaption(_dispData.gameEn);
-    lblAuthor.setCaption(_dispData.authorEn);
-    lblSystem.setCaption(_dispData.systemEn);
-  }
-
-  // Snapshot
-  // 1) snap/[finemame].png
-  // 2) snap/[songno].png
-  // 3) ***.png
-
-  String fileName = ndFile.files[ndFile.currentDir][ndFile.currentFile];
-  fileName = fileName.substring(0, fileName.length() - 4);
-
-  if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", fileName + ".png", true, true) == false) {
-    if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", String(_dispData.no) + ".png", true, true) == false) {
-      openPNG(ndFile.dirs[ndFile.currentDir], ndFile.pngs[ndFile.currentDir], true, true);
-    }
-  }
-
-  frameBuffer.pushSprite(0, 0);
-  _stopTimerDrawing = false;
-  xSemaphoreGive(spFrameBuffer);
-}
-
-// シリアルモード描画
-void serialModeDraw() {
-  xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
-  _stopTimerDrawing = true;
-  drawBG();
-  render.setUseRenderTask(false);
-  render.setDrawer(frameBuffer);
-
-  frameBuffer.pushImage(170 - 2 - USB_ICON_WIDTH, 2, USB_ICON_WIDTH, USB_ICON_HEIGHT, usb_icon);  // usb icon
-
-  render.loadFont(nimbusBold, sizeof(nimbusBold));
-  render.setFontSize(13);
-  render.setFontColor(C_YELLOW, C_DARK);
-  render.setCursor(27, 284);
-
-  if (vgm.freq[0] != SI5351_UNDEFINED) {
-    char buf[7];
-    dtostrf((double)vgm.freq[0] / 1000000.0, 1, 4, buf);
-    String st = "YM2612 @ " + String(buf).substring(0, 5) + " MHz";
-    render.printf(st.c_str());
-  } else {
-    render.printf("YM2612 @ -- MHz");
-  }
-  render.setCursor(27, 303);
-  if (vgm.freq[1] != SI5351_UNDEFINED) {
-    char buf[7];
-    dtostrf((double)vgm.freq[1] / 1000000.0, 1, 4, buf);
-    String st = "SN76489 @ " + String(buf).substring(0, 5) + " MHz";
-    render.printf(st.c_str());
-  } else {
-    render.printf("SN76489 @ -- MHz");
-  }
-
-  render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
-  render.setCursor(11, 284);
-  render.printf("1");
-  render.setCursor(11, 303);
-  render.printf("2");
-
-  render.setFontColor(C_ORANGE, C_HEADER);
-  render.setCursor(4, 4);
-  render.setAlignment(Align::TopLeft);
-  render.printf("USB");
-  render.unloadFont();
-
-  render.loadFont(fontMain, sizeof(fontMain));
-  render.setFontSize(16);
-  render.setFontColor(C_GRAY, C_BASEBG);
-  render.setCursor(28, 256);
-  render.printf("--");
-  render.unloadFont();
-
-  if (ndConfig.get(CFG_LANG) == LANG_JA) {
-    lblTitle.setCaption("シリアルモード");
-    lblGame.setCaption("ベータ版");
-    lblAuthor.setCaption("--");
-    lblSystem.setCaption("メガドライブ");
-  } else {
-    lblTitle.setCaption("Serial Mode");
-    lblGame.setCaption("Beta Version");
-    lblAuthor.setCaption("--");
-    lblSystem.setCaption("Mega Drive / Genesis");
-  }
-
-  frameBuffer.pushSprite(0, 0);
-  xSemaphoreGive(spFrameBuffer);
-}
-
-void updateDisp(tDispData data) {
-  //
-  _dispData.authorEn = data.authorEn;
-  _dispData.authorJp = data.authorJp;
-  _dispData.chip0 = data.chip0;
-  _dispData.chip1 = data.chip1;
-  _dispData.date = data.date;
-  _dispData.gameEn = data.gameEn;
-  _dispData.gameJp = data.gameJp;
-  _dispData.no = data.no;
-  _dispData.maxFiles = data.maxFiles;
-  _dispData.systemEn = data.systemEn;
-  _dispData.systemJp = data.systemJp;
-  _dispData.trackEn = data.trackEn;
-  _dispData.trackJp = data.trackJp;
-  _dispData.type = data.type;
-  _dispData.time = 0;
-
-  if (!cfgWindow.isVisible) {
-    redraw();
-  }
-}
-
-// Init Display
-bool initDisp() {
-  lcd.init();
-  lcd.setRotation(0);
-  lcd.fillScreen(C_BASEBG);
-  lcd.endWrite();
-
-  // 再描画用セマフォ
-  spFrameBuffer = xSemaphoreCreateBinary();
-  xSemaphoreGive(spFrameBuffer);
-
-  // フレームバッファスプライト作成
-  frameBuffer.setPsram(true);
-  frameBuffer.createSprite(LCD_W, LCD_H);
-
-  // 縮小済み PNG スプライト
-  sprPngResized.setPsram(true);
-  sprPngResized.createSprite(LCD_W + 1, 125);
-
-  _stopTimerDrawing = true;
-
-  // タイマー生成
-  hDispTimer = xTimerCreate("DISP_TIMER", DISP_TIMER_INTERVAL, pdTRUE, NULL, dispTimerHandler);
-  xTimerStart(hDispTimer, 0);
-
-  return true;
-}
-
-void startTimer() { xTimerStart(hDispTimer, 0); }
-void stopTimer() { xTimerStop(hDispTimer, 0); }
 
 // -----------------------------------------------------------------------
 // Opening a png file on the SD card
@@ -556,6 +317,244 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
   return true;
 }
 
+// --------------------------------------------------------------------------
+// 画面クラス
+bool Disp::init() {
+  lcd.init();
+  lcd.setRotation(0);
+  lcd.fillScreen(C_BASEBG);
+  lcd.endWrite();
+
+  // 再描画用セマフォ
+  spFrameBuffer = xSemaphoreCreateBinary();
+  xSemaphoreGive(spFrameBuffer);
+
+  // フレームバッファスプライト作成
+  frameBuffer.setPsram(true);
+  frameBuffer.createSprite(LCD_W, LCD_H);
+
+  // 縮小済み PNG スプライト
+  sprPngResized.setPsram(true);
+  sprPngResized.createSprite(LCD_W + 1, 125);
+
+  _stopTimerDrawing = true;
+
+  // タイマー生成
+  hDispTimer = xTimerCreate("DISP_TIMER", DISP_TIMER_INTERVAL, pdTRUE, NULL, dispTimerHandler);
+  xTimerStart(hDispTimer, 0);
+
+  return true;
+}
+
+void Disp::startTimer() { xTimerStart(hDispTimer, 0); }
+
+void Disp::stopTimer() { xTimerStop(hDispTimer, 0); }
+
+void Disp::drawBG() {  // 背景描画
+  frameBuffer.fillSprite(C_BASEBG);
+  frameBuffer.fillRect(0, 0, LCD_W, 19, C_HEADER);
+  // frameBuffer.fillRect(0, 75, LCD_W, 125, C_DARK);
+  frameBuffer.fillRoundRect(1, 279, LCD_W - 2, 40, 2, C_DARK);
+  frameBuffer.pushImage(8, 211, ICONS_WIDTH, ICONS_HEIGHT, icons);
+  frameBuffer.fillRoundRect(6, 283, 17, 14, 2, C_FOOTER_ACTIVE);
+  frameBuffer.fillRoundRect(6, 301, 17, 14, 2, C_FOOTER_ACTIVE);
+}
+
+void Disp::redraw() {  // プレーヤー描画
+  xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
+  _stopTimerDrawing = true;
+  this->drawBG();
+  render.setUseRenderTask(false);
+  render.setDrawer(frameBuffer);
+  render.setAlignment(Align::TopLeft);
+
+  render.loadFont(fontMain, sizeof(fontMain));
+  render.setFontSize(16);
+  render.setFontColor(C_GRAY, C_BASEBG);
+  render.setCursor(27, 256);
+  render.printf(dispData.date.c_str());
+  render.unloadFont();
+
+  render.loadFont(nimbusBold, sizeof(nimbusBold));
+  render.setFontSize(13);
+  render.setFontColor(C_YELLOW, C_DARK);
+  render.setCursor(27, 284);
+  render.printf(dispData.chip0.c_str());
+  render.setCursor(27, 303);
+  render.printf(dispData.chip1.c_str());
+
+  render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
+  render.setCursor(11, 284);
+  render.printf("1");
+  render.setCursor(11, 303);
+  render.printf("2");
+
+  if (dispData.no != 0 && dispData.maxFiles != 0) {
+    render.setFontSize(14);
+    render.setFontColor(C_GRAY, C_HEADER);
+    render.setCursor(167, 4);
+    render.setAlignment(Align::TopRight);
+    render.printf("%02d/%02d", dispData.no, dispData.maxFiles);
+  }
+
+  // if (ndConfig.get(CFG_UPDATE) == UPDATE_YES) {
+  render.setAlignment(Align::TopCenter);
+  render.setFontSize(14);
+  render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  render.setCursor(LCD_W / 2, 4);
+  render.printf("%d:%02d", (uint8_t)(dispData.time / 60), (uint8_t)(dispData.time % 60));
+  //}
+
+  render.setFontSize(13);
+  render.setFontColor(C_ORANGE, C_HEADER);
+  render.setCursor(4, 4);
+  render.setAlignment(Align::TopLeft);
+  render.printf(dispData.type.c_str());
+  render.unloadFont();
+
+  if (ndConfig.get(CFG_LANG) == LANG_JA) {
+    lblTitle.setCaption(dispData.trackJp);
+    lblGame.setCaption(dispData.gameJp);
+    lblAuthor.setCaption(dispData.authorJp);
+    lblSystem.setCaption(dispData.systemJp);
+  } else {
+    lblTitle.setCaption(dispData.trackEn);
+    lblGame.setCaption(dispData.gameEn);
+    lblAuthor.setCaption(dispData.authorEn);
+    lblSystem.setCaption(dispData.systemEn);
+  }
+
+  // Snapshot
+  // 1) snap/[finemame].png
+  // 2) snap/[songno].png
+  // 3) ***.png
+
+  String fileName = ndFile.files[ndFile.currentDir][ndFile.currentFile];
+  fileName = fileName.substring(0, fileName.length() - 4);
+
+  if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", fileName + ".png", true, true) == false) {
+    if (openPNG(ndFile.dirs[ndFile.currentDir] + "/snap", String(dispData.no) + ".png", true, true) == false) {
+      openPNG(ndFile.dirs[ndFile.currentDir], ndFile.pngs[ndFile.currentDir], true, true);
+    }
+  }
+
+  frameBuffer.pushSprite(0, 0);
+  _stopTimerDrawing = false;
+  xSemaphoreGive(spFrameBuffer);
+}
+
+// 表示内容更新
+void Disp::updateDisp(tDispData data) {
+  dispData.authorEn = data.authorEn;
+  dispData.authorJp = data.authorJp;
+  dispData.chip0 = data.chip0;
+  dispData.chip1 = data.chip1;
+  dispData.date = data.date;
+  dispData.gameEn = data.gameEn;
+  dispData.gameJp = data.gameJp;
+  dispData.no = data.no;
+  dispData.maxFiles = data.maxFiles;
+  dispData.systemEn = data.systemEn;
+  dispData.systemJp = data.systemJp;
+  dispData.trackEn = data.trackEn;
+  dispData.trackJp = data.trackJp;
+  dispData.type = data.type;
+  dispData.time = 0;
+
+  if (disp.currentView == ViewMode::Player) {
+    disp.redraw();
+  }
+}
+
+// ヘッダ更新
+void Disp::updateHeader(uint64_t sec) {
+  if (xSemaphoreTake(spFrameBuffer, portMAX_DELAY) == pdTRUE) {
+    _sprHeader.createSprite(70, 14);
+    _sprHeader.fillSprite(C_HEADER);
+    render.setDrawer(_sprHeader);
+    render.setAlignment(Align::TopCenter);
+    render.loadFont(nimbusBold, sizeof(nimbusBold));
+    render.setFontSize(14);
+    render.setFontColor(TFT_WHITE);
+    render.setCursor(35, 0);
+    render.printf("%d:%02d", (uint8_t)(sec / 60), (uint8_t)(sec % 60));
+    render.unloadFont();
+    _sprHeader.pushSprite(50, 4);
+    _sprHeader.deleteSprite();
+    xSemaphoreGive(spFrameBuffer);
+  }
+}
+
+// シリアルモード画面描画
+void Disp::serialModeDraw() {
+  xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
+  _stopTimerDrawing = true;
+  this->drawBG();
+  render.setUseRenderTask(false);
+  render.setDrawer(frameBuffer);
+
+  frameBuffer.pushImage(170 - 2 - USB_ICON_WIDTH, 2, USB_ICON_WIDTH, USB_ICON_HEIGHT, usb_icon);  // usb icon
+
+  render.loadFont(nimbusBold, sizeof(nimbusBold));
+  render.setFontSize(13);
+  render.setFontColor(C_YELLOW, C_DARK);
+  render.setCursor(27, 284);
+
+  if (vgm.freq[0] != SI5351_UNDEFINED) {
+    char buf[7];
+    dtostrf((double)vgm.freq[0] / 1000000.0, 1, 4, buf);
+    String st = "YM2612 @ " + String(buf).substring(0, 5) + " MHz";
+    render.printf(st.c_str());
+  } else {
+    render.printf("YM2612 @ -- MHz");
+  }
+  render.setCursor(27, 303);
+  if (vgm.freq[1] != SI5351_UNDEFINED) {
+    char buf[7];
+    dtostrf((double)vgm.freq[1] / 1000000.0, 1, 4, buf);
+    String st = "SN76489 @ " + String(buf).substring(0, 5) + " MHz";
+    render.printf(st.c_str());
+  } else {
+    render.printf("SN76489 @ -- MHz");
+  }
+
+  render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
+  render.setCursor(11, 284);
+  render.printf("1");
+  render.setCursor(11, 303);
+  render.printf("2");
+
+  render.setFontColor(C_ORANGE, C_HEADER);
+  render.setCursor(4, 4);
+  render.setAlignment(Align::TopLeft);
+  render.printf("USB");
+  render.unloadFont();
+
+  render.loadFont(fontMain, sizeof(fontMain));
+  render.setFontSize(16);
+  render.setFontColor(C_GRAY, C_BASEBG);
+  render.setCursor(28, 256);
+  render.printf("--");
+  render.unloadFont();
+
+  if (ndConfig.get(CFG_LANG) == LANG_JA) {
+    lblTitle.setCaption("シリアルモード");
+    lblGame.setCaption("ベータ版");
+    lblAuthor.setCaption("--");
+    lblSystem.setCaption("メガドライブ");
+  } else {
+    lblTitle.setCaption("Serial Mode");
+    lblGame.setCaption("Beta Version");
+    lblAuthor.setCaption("--");
+    lblSystem.setCaption("Mega Drive / Genesis");
+  }
+
+  frameBuffer.pushSprite(0, 0);
+  xSemaphoreGive(spFrameBuffer);
+}
+
+Disp disp = Disp();
+
 //---------------------------------------------------------------------------
 // 設定画面クラスなど
 
@@ -571,6 +570,7 @@ void CFGWindowEventLoop(void* pvPrams) {
         }
         case cfgEvent::Close: {
           cfgWindow.isVisible = false;
+          disp.currentView = ViewMode::Player;
 
           // モードが違えば再起動
           if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
@@ -580,9 +580,9 @@ void CFGWindowEventLoop(void* pvPrams) {
 
           // 現在のモードに合わせて再描画
           if (ndConfig.currentMode == MODE_PLAYER) {
-            redraw();
+            disp.redraw();
           } else if (ndConfig.currentMode == MODE_SERIAL) {
-            serialModeDraw();
+            disp.serialModeDraw();
           }
           break;
         }
@@ -649,14 +649,14 @@ void CFGWindow::initHeaders() {
   _sprHeaderJP.fillSprite(C_HEADER);
   _sprHeaderJP.pushImage(146, 3, CFG_ICON_WIDTH, CFG_ICON_HEIGHT, cfgIcon);
 
-  render.setDrawer(_sprHeaderJP);
-  render.setAlignment(Align::TopLeft);
-  render.loadFont(fontMain, sizeof(fontMain));
-  render.setFontSize(17);
-  render.setFontColor(C_LIGHTGRAY, C_HEADER);
-  render.setCursor(6, 4);
-  render.printf("設定");
-  render.unloadFont();
+  disp.render.setDrawer(_sprHeaderJP);
+  disp.render.setAlignment(Align::TopLeft);
+  disp.render.loadFont(fontMain, sizeof(fontMain));
+  disp.render.setFontSize(17);
+  disp.render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  disp.render.setCursor(6, 4);
+  disp.render.printf("設定");
+  disp.render.unloadFont();
 
   // 英語ヘッダー作成
   _sprHeaderEN.setPsram(false);  // ヘッダーは小さいのでPSRAM不要
@@ -664,14 +664,14 @@ void CFGWindow::initHeaders() {
   _sprHeaderEN.fillSprite(C_HEADER);
   _sprHeaderEN.pushImage(146, 3, CFG_ICON_WIDTH, CFG_ICON_HEIGHT, cfgIcon);
 
-  render.setDrawer(_sprHeaderEN);
-  render.setAlignment(Align::TopLeft);
-  render.loadFont(nimbusBold, sizeof(nimbusBold));
-  render.setFontSize(16);
-  render.setFontColor(C_LIGHTGRAY, C_HEADER);
-  render.setCursor(6, 5);
-  render.printf("Settings");
-  render.unloadFont();
+  disp.render.setDrawer(_sprHeaderEN);
+  disp.render.setAlignment(Align::TopLeft);
+  disp.render.loadFont(nimbusBold, sizeof(nimbusBold));
+  disp.render.setFontSize(16);
+  disp.render.setFontColor(C_LIGHTGRAY, C_HEADER);
+  disp.render.setCursor(6, 5);
+  disp.render.printf("Settings");
+  disp.render.unloadFont();
 }
 
 void CFGWindow::init() {
@@ -690,6 +690,8 @@ void CFGWindow::show() {
 
   if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
     isVisible = true;
+    disp.currentView = ViewMode::Config;
+
     cfgEvent event = cfgEvent::Open;
     xQueueSend(xQueueCFGWindow, &event, 0);
   }
@@ -745,20 +747,20 @@ void CFGWindow::draw() {
 
   frameBuffer.fillRoundRect(124, 293, 42, 23, 2, C_FOOTER_ACTIVE);
 
-  render.setDrawer(frameBuffer);
-  render.setAlignment(Align::TopLeft);
-  render.setFontColor(C_LIGHTGRAY, C_FOOTER_ACTIVE);
+  disp.render.setDrawer(frameBuffer);
+  disp.render.setAlignment(Align::TopLeft);
+  disp.render.setFontColor(C_LIGHTGRAY, C_FOOTER_ACTIVE);
 
   if (ndConfig.get(CFG_LANG) == LANG_JA) {
-    render.loadFont(fontMain, sizeof(fontMain));
-    render.setFontSize(17);
-    render.setCursor(130, 297);
-    render.printf("戻る");
+    disp.render.loadFont(fontMain, sizeof(fontMain));
+    disp.render.setFontSize(17);
+    disp.render.setCursor(130, 297);
+    disp.render.printf("戻る");
   } else {
-    render.loadFont(nimbusBold, sizeof(nimbusBold));
-    render.setFontSize(16);
-    render.setCursor(133, 298);
-    render.printf("OK");
+    disp.render.loadFont(nimbusBold, sizeof(nimbusBold));
+    disp.render.setFontSize(16);
+    disp.render.setCursor(133, 298);
+    disp.render.printf("OK");
   }
 
   drawFooter(true);
@@ -767,7 +769,7 @@ void CFGWindow::draw() {
     cfgWindow.drawItem(i, true);
   }
 
-  render.unloadFont();
+  disp.render.unloadFont();
   frameBuffer.pushSprite(0, 0);
   xSemaphoreGive(spFrameBuffer);  // 描画完了
 }

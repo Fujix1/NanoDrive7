@@ -245,6 +245,10 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f) {
     }
 #endif
   }
+
+  nju72341.setVolume_1B(_attFM);
+  nju72341.setVolume_2B(_attSSG);
+
   nju72341.reset(_att);
   xSemaphoreGive(spFileOpen);
   nju72341.unmute();
@@ -260,6 +264,7 @@ void NDFile::getAttValueInDir(const String &dirPath) {
   _att = 0;
   _attFM = 0;
   _attSSG = 0;
+  bool foundPC98 = false;
 
   File dir = SD.open(dirPath);
   if (!dir || !dir.isDirectory()) {
@@ -290,10 +295,18 @@ void NDFile::getAttValueInDir(const String &dirPath) {
         if (value > 0 && value <= 24) {
           _attSSG = value;
         }
+      } else if (fileName == "pc98") {
+        foundPC98 = true;
       }
     }
   }
   dir.close();
+
+  // 98モード
+  if (foundPC98) {
+    _attFM = 0;
+    _attSSG = 3;  // SSG 3db下げ
+  }
   return;
 }
 

@@ -50,16 +50,34 @@ typedef struct {
   uint32_t no, maxFiles;
 } tDispData;
 
-bool initDisp();
-void updateDisp(tDispData data);
-void redrawOnCore0();
-void redraw();
-void serialModeDraw();
-void drawBG();
-void startTimer();
-void stopTimer();
-
+// void redrawOnCore0();
 bool openPNG(String dirName, String fileName, bool AA, bool sprite);
+
+// 現在の画面表示モード
+enum class ViewMode { Player, Config, Visual };
+
+// 画面 クラス
+class Disp {
+ private:
+  LGFX_Sprite _sprHeader;  // ヘッダ部分のスプライト
+
+ public:
+  bool init();                      // 初期化
+  void drawBG();                    // 背景描画
+  void redraw();                    // プレーヤー描画
+  void updateDisp(tDispData data);  // 表示内容更新
+  void serialModeDraw();            // シリアルモード画面描画
+  void startTimer();                // 描画タイマー開始
+  void stopTimer();                 // 描画タイマー停止
+  void updateHeader(uint64_t sec);  // ヘッダ更新
+
+  tDispData dispData;                       // 各種表示テキストなど
+  ViewMode currentView = ViewMode::Player;  // デフォルトはプレーヤー画面
+  OpenFontRender render;                    // OpenFontRenderer
+  Disp() : _sprHeader(&lcd) {}
+};
+
+extern Disp disp;
 
 // Label クラス
 class Label {

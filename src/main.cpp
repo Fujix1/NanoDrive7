@@ -53,8 +53,8 @@ void setup() {
   delay(100);
 
   // ディスプレイ初期化
-  if (!initDisp()) {
-    Serial.println("initDisp failed.");
+  if (!disp.init()) {
+    Serial.println("disp.init() failed.");
   }
 
   lcd.setFont(&fonts::Font2);

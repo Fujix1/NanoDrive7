@@ -91,7 +91,7 @@ void serialCheckerTask(void *param) {
         clock0 = getSerial32();
         SI5351.setFreq((si5351Freq_t)clock0, 0);
         vgm.freq[0] = (si5351Freq_t)clock0;
-        serialModeDraw();
+        disp.serialModeDraw();
         break;
       }
 
@@ -100,7 +100,7 @@ void serialCheckerTask(void *param) {
         clock1 = getSerial32();
         SI5351.setFreq((si5351Freq_t)clock1, 1);
         vgm.freq[1] = (si5351Freq_t)clock1;
-        serialModeDraw();
+        disp.serialModeDraw();
         break;
       }
 
@@ -131,7 +131,7 @@ void SerialMan::init() {
   // 画面描画
   vgm.freq[0] = YM2612ClockOptions[YM2612Clock];
   vgm.freq[1] = SN76489ClockOptions[SN76489Clock];
-  serialModeDraw();
+  disp.serialModeDraw();
 
   // 音出す
   SI5351.setFreq(SI5351_7670, 0);
@@ -155,7 +155,7 @@ void SerialMan::changeYM2612Clock() {
 
   vgm.freq[0] = YM2612ClockOptions[YM2612Clock];
   SI5351.setFreq(YM2612ClockOptions[YM2612Clock], 0);
-  serialModeDraw();
+  disp.serialModeDraw();
 }
 
 // SN76489クロック変更
@@ -167,7 +167,7 @@ void SerialMan::changeSN76489Clock() {
   }
   vgm.freq[1] = SN76489ClockOptions[SN76489Clock];
   SI5351.setFreq(SN76489ClockOptions[SN76489Clock], 1);
-  serialModeDraw();
+  disp.serialModeDraw();
 }
 
 // シリアルマネージャのインスタンス
