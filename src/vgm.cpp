@@ -641,7 +641,7 @@ void VGM::vgmProcess() {
   _vgmWaitUntil = _vgmStart + _vgmRealSamples * 22.67573696145125;
 
   while (_vgmWaitUntil > micros64()) {
-    ets_delay_us(22);
+    ets_delay_us(100);
   }
 }
 
@@ -695,9 +695,6 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
       if ((reg >= 0x30 && reg <= 0xB6) || reg == 0x22 || reg == 0x27 || reg == 0x28 || reg == 0x2A || reg == 0x2B) {
         FM.setYM2612(0, reg, dat, 0);
-        // チップ2が有効な場合でも、ここでチップ2へ書き込まないようにする
-        // もしチップ2への書き込みが必要な場合は、別途制御を追加してください
-        // 例: if (chipSlot[CHIP2] != CHIP_NONE) { /* FM.setYM2612(2, reg, dat, 0); */ }
       }
       break;
 

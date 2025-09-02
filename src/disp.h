@@ -54,7 +54,7 @@ typedef struct {
 bool openPNG(String dirName, String fileName, bool AA, bool sprite);
 
 // 現在の画面表示モード
-enum class ViewMode { Player, Config, Visual };
+enum class ViewMode { Player, Config, Serial, Visual };
 
 // 画面 クラス
 class Disp {
@@ -135,5 +135,16 @@ class CFGWindow {
 };
 
 extern CFGWindow cfgWindow;
+
+// ビジュアルクラス
+class VisualWindow {
+ private:
+ public:
+  void init();
+  void show();
+  void close();
+};
+
+extern VisualWindow visualWindow;
 
 #endif

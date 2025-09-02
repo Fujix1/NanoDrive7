@@ -6,9 +6,12 @@
 #include "file.h"
 #include "serialman.h"
 
+static QueueHandle_t xQueueInput;  // 入力のキュー
+static TaskHandle_t tskEventLoop;  // イベントループ
+
 void inputTask(void *param) {
   while (1) {
-    Button b = input.checkButton2();
+    Button b = input.checkButton();
     if (b != btnNONE) input.inputBuffer = b;
     vTaskDelay(INPUT_CAPTURE_INTERVAL);
   }
@@ -44,44 +47,18 @@ void serialCheckerTask_(void *param) {
 
 Input::Input() { pinMode(INPUT_PIN, ANALOG); }
 
-void Input::init() { xTaskCreateUniversal(inputTask, "inputTask", 10000, NULL, 1, NULL, PRO_CPU_NUM); }
+void Input::init() {
+  // ボタン状態をチェックするタスク
+  xTaskCreateUniversal(inputTask, "inputTask", 10000, NULL, 1, NULL, PRO_CPU_NUM);
+}
 
 void Input::inputHandler() {
   if (!_enabled) return;
 
-  if (cfgWindow.isVisible) {
-    switch (inputBuffer) {
-      case btnNONE: {
-        break;
-      }
-      case btnUP: {
-        cfgWindow.up();
-        break;
-      }
-      case btnDOWN: {
-        cfgWindow.down();
-        break;
-      }
-      case btnLEFT: {
-        cfgWindow.left();
-        break;
-      }
-      case btnRIGHT: {
-        cfgWindow.right();
-        break;
-      }
-      case btnSELECT: {
-        cfgWindow.close();  // 設定ウィンドウ閉じる
-        break;
-      }
-    }
-
-  } else {
-    if (ndConfig.currentMode == MODE_PLAYER) {
+  // 入力処理
+  switch (disp.currentView) {
+    case ViewMode::Player: {  // プレイヤー
       switch (inputBuffer) {
-        case btnNONE: {
-          break;
-        }
         case btnUP: {
           ndFile.dirPlay(1);
           break;
@@ -103,11 +80,38 @@ void Input::inputHandler() {
           break;
         }
       }
-    } else {
+      break;
+    }
+    case ViewMode::Config: {  // 設定メニュー
       switch (inputBuffer) {
-        case btnNONE: {
+        case btnUP: {
+          cfgWindow.up();
           break;
         }
+        case btnDOWN: {
+          cfgWindow.down();
+          break;
+        }
+        case btnLEFT: {
+          cfgWindow.left();
+          break;
+        }
+        case btnRIGHT: {
+          cfgWindow.right();
+          break;
+        }
+        case btnSELECT: {
+          cfgWindow.close();  // 設定ウィンドウ閉じる
+          break;
+        }
+      }
+      break;
+    }
+    case ViewMode::Visual: {  // ビジュアル
+      break;
+    }
+    case ViewMode::Serial: {  // シリアル
+      switch (inputBuffer) {
         case btnUP: {
           serialMan.changeYM2612Clock();
           break;
@@ -127,8 +131,12 @@ void Input::inputHandler() {
           break;
         }
       }
+      break;
+    }
+    default: {
     }
   }
+
   inputBuffer = btnNONE;
 }
 
@@ -138,7 +146,7 @@ void Input::setEnabled(bool state) { _enabled = state; }
 // ボタンの状態取得
 Button Input::_readButton() {
   u16_t in = analogRead(INPUT_PIN);
-  //Serial.printf("%d\n", in);
+  // Serial.printf("%d\n", in);
   if (in > VAL_NONE - 100)
     return btnNONE;
   else if (in < VAL_0 + 100)
@@ -155,7 +163,7 @@ Button Input::_readButton() {
   return btnNONE;
 }
 
-Button Input::checkButton2() {
+Button Input::checkButton() {
   uint32_t ms = millis();
   Button btn = _readButton();  // ボタン取得
 

@@ -24,7 +24,7 @@ class Input {
   void inputHandler();
   void setEnabled(bool state);
   Button inputBuffer = btnNONE;
-  Button checkButton2();
+  Button checkButton();
 
  private:
   bool _enabled = false;

@@ -71,10 +71,10 @@ static String lastPNGPath = "";
 
 static TimerHandle_t hDispTimer;
 
-static Label lblTitle = Label(0, 28, LCD_W, C_ACCENT_LIGHT, C_BASEBG, 20, SCROLL_SPEED_TITLE, Align::TopCenter);
-static Label lblGame = Label(0, 53, LCD_W, C_LIGHTGRAY, C_BASEBG, 15, SCROLL_SPEED_GAME, Align::TopCenter);
-static Label lblAuthor = Label(28, 233, LCD_W - 28, C_GRAY, C_BASEBG, 16, SCROLL_SPEED_AUTHOR, Align::TopLeft);
-static Label lblSystem = Label(28, 211, LCD_W - 28, C_GRAY, C_BASEBG, 16, SCROLL_SPEED_AUTHOR, Align::TopLeft);
+static Label lblTitle = Label(0, 28, LCD_W, C_ACCENT_LIGHT, C_BASEBG, 21, SCROLL_SPEED_TITLE, Align::TopCenter);
+static Label lblGame = Label(0, 53, LCD_W, C_LIGHTGRAY, C_BASEBG, 16, SCROLL_SPEED_GAME, Align::TopCenter);
+static Label lblAuthor = Label(28, 233, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL_SPEED_AUTHOR, Align::TopLeft);
+static Label lblSystem = Label(28, 211, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL_SPEED_AUTHOR, Align::TopLeft);
 
 static SemaphoreHandle_t spFrameBuffer;  // 描画用セマフォ
 static QueueHandle_t xQueueCFGWindow;
@@ -570,7 +570,7 @@ void CFGWindowEventLoop(void* pvPrams) {
         }
         case cfgEvent::Close: {
           cfgWindow.isVisible = false;
-          disp.currentView = ViewMode::Player;
+          disp.currentView = ViewMode::Visual;
 
           // モードが違えば再起動
           if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
@@ -753,7 +753,7 @@ void CFGWindow::draw() {
 
   if (ndConfig.get(CFG_LANG) == LANG_JA) {
     disp.render.loadFont(fontMain, sizeof(fontMain));
-    disp.render.setFontSize(17);
+    disp.render.setFontSize(18);
     disp.render.setCursor(130, 297);
     disp.render.printf("戻る");
   } else {
@@ -790,7 +790,7 @@ void CFGWindow::drawItem(int index, bool toFrameBuffer) {
   int fontSize;
   if (ndConfig.get(CFG_LANG) == LANG_JA) {
     ofr.loadFont(fontMain, sizeof(fontMain));
-    fontSize = 17;
+    fontSize = 18;
     label = ndConfig.items[index].labelJp;
     option = ndConfig.items[index].optionsJp[ndConfig.items[index].index];
   } else {
@@ -865,3 +865,8 @@ void CFGWindow::drawFooter(bool toFrameBuffer) {
 }
 
 CFGWindow cfgWindow = CFGWindow();
+
+// ビジュアルウィンドウ
+class VisualWindow {};
+
+VisualWindow visualWindow = VisualWindow();
