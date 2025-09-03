@@ -2,8 +2,6 @@
 
 #include "pics.h"
 
-enum class cfgEvent { Open, Close, Up, Down, Left, Right };
-
 static PNG png;
 static bool _stopTimerDrawing = true;  // タイマーによる描画更新を止める
 
@@ -77,8 +75,6 @@ static Label lblAuthor = Label(28, 233, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL
 static Label lblSystem = Label(28, 211, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL_SPEED_AUTHOR, Align::TopLeft);
 
 static SemaphoreHandle_t spFrameBuffer;  // 描画用セマフォ
-static QueueHandle_t xQueueCFGWindow;
-static TaskHandle_t tskCFGEventLoop;
 
 /* 未使用。Core0描画用。不要なら削除可。
 void redrawOnCore0Task(void* pvParameters) {
@@ -307,7 +303,6 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
     }
     png.close();
   }
-
   if (toSprite) {
     sprPngResized.pushSprite(&frameBuffer, 0, 75);
   } else {
@@ -362,6 +357,7 @@ void Disp::drawBG() {  // 背景描画
 
 void Disp::redraw() {  // プレーヤー描画
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
+
   _stopTimerDrawing = true;
   this->drawBG();
   render.setUseRenderTask(false);
@@ -428,7 +424,6 @@ void Disp::redraw() {  // プレーヤー描画
   // 1) snap/[finemame].png
   // 2) snap/[songno].png
   // 3) ***.png
-
   String fileName = ndFile.files[ndFile.currentDir][ndFile.currentFile];
   fileName = fileName.substring(0, fileName.length() - 4);
 
@@ -438,7 +433,11 @@ void Disp::redraw() {  // プレーヤー描画
     }
   }
 
+  // uint32_t t0 = millis();
   frameBuffer.pushSprite(0, 0);
+  // uint32_t t1 = millis();
+  // Serial.printf("pushSprite time: %d ms\n", t1 - t0);
+
   _stopTimerDrawing = false;
   xSemaphoreGive(spFrameBuffer);
 }
@@ -561,16 +560,16 @@ Disp disp = Disp();
 // CFGウィンドウのイベント処理
 void CFGWindowEventLoop(void* pvPrams) {
   while (1) {
-    cfgEvent event;
-    if (xQueueReceive(xQueueCFGWindow, &event, 0) == pdTRUE) {
+    event event;
+    if (xQueueReceive(xQueueInput, &event, 0) == pdTRUE) {
       switch (event) {
-        case cfgEvent::Open: {
+        case event::Open: {
           cfgWindow.draw();
           break;
         }
-        case cfgEvent::Close: {
+        case event::Close: {
           cfgWindow.isVisible = false;
-          disp.currentView = ViewMode::Visual;
+          disp.currentView = ViewMode::Player;
 
           // モードが違えば再起動
           if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
@@ -586,7 +585,7 @@ void CFGWindowEventLoop(void* pvPrams) {
           }
           break;
         }
-        case cfgEvent::Up: {
+        case event::Up: {
           if (cfgWindow.currentItemIndex != 0) {
             cfgWindow.currentItemIndex--;
             cfgWindow.drawItem(cfgWindow.currentItemIndex + 1, false);
@@ -595,7 +594,7 @@ void CFGWindowEventLoop(void* pvPrams) {
           }
           break;
         }
-        case cfgEvent::Down: {
+        case event::Down: {
           if (cfgWindow.currentItemIndex != ndConfig.items.size() - 1) {
             cfgWindow.currentItemIndex++;
             cfgWindow.drawItem(cfgWindow.currentItemIndex - 1, false);
@@ -604,7 +603,7 @@ void CFGWindowEventLoop(void* pvPrams) {
           }
           break;
         }
-        case cfgEvent::Left: {
+        case event::Left: {
           if (ndConfig.items[cfgWindow.currentItemIndex].index != 0) {
             ndConfig.items[cfgWindow.currentItemIndex].index--;
             // 言語はすぐ再描画
@@ -618,7 +617,7 @@ void CFGWindowEventLoop(void* pvPrams) {
           }
           break;
         }
-        case cfgEvent::Right: {
+        case event::Right: {
           if (ndConfig.items[cfgWindow.currentItemIndex].index !=
               ndConfig.items[cfgWindow.currentItemIndex].optionValues.size() - 1) {
             ndConfig.items[cfgWindow.currentItemIndex].index++;
@@ -675,9 +674,6 @@ void CFGWindow::initHeaders() {
 }
 
 void CFGWindow::init() {
-  // キュー作成
-  xQueueCFGWindow = xQueueCreate(2, sizeof(cfgEvent));
-  xTaskCreateUniversal(CFGWindowEventLoop, "CFG", 13192, NULL, 1, &tskCFGEventLoop, PRO_CPU_NUM);
   _sprite.createSprite(LCD_W, ITEM_HEIGHT);
   _sprFooter.createSprite(120, 23);
 
@@ -688,48 +684,88 @@ void CFGWindow::init() {
 void CFGWindow::show() {
   if (isVisible) return;
 
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
+  if (uxQueueSpacesAvailable(xQueueInput)) {
     isVisible = true;
     disp.currentView = ViewMode::Config;
 
-    cfgEvent event = cfgEvent::Open;
-    xQueueSend(xQueueCFGWindow, &event, 0);
+    event event = event::Open;
+    xQueueSend(xQueueInput, &event, 0);
   }
 }
 
-void CFGWindow::close() {
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
-    cfgEvent event = cfgEvent::Close;
-    xQueueSend(xQueueCFGWindow, &event, 1);
-  }
-}
+void CFGWindow::inputHandler(event event) {
+  if (disp.currentView == ViewMode::Config) {
+    switch (event) {
+      case event::Open: {
+        cfgWindow.draw();
+        break;
+      }
+      case event::Close: {
+        cfgWindow.isVisible = false;
+        disp.currentView = ViewMode::Player;
 
-void CFGWindow::up() {
-  if (!isVisible) return;
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
-    cfgEvent event = cfgEvent::Up;
-    xQueueSend(xQueueCFGWindow, &event, 0);
-  }
-}
-void CFGWindow::down() {
-  if (!isVisible) return;
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
-    cfgEvent event = cfgEvent::Down;
-    xQueueSend(xQueueCFGWindow, &event, 0);
-  }
-}
-void CFGWindow::left() {
-  if (!isVisible) return;
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
-    cfgEvent event = cfgEvent::Left;
-    xQueueSend(xQueueCFGWindow, &event, 0);
-  }
-}
-void CFGWindow::right() {
-  if (!isVisible) return;
-  if (uxQueueSpacesAvailable(xQueueCFGWindow)) {
-    cfgEvent event = cfgEvent::Right;
-    xQueueSend(xQueueCFGWindow, &event, 0);
+        // モードが違えば再起動
+        if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
+          ESP.restart();
+          return;
+        }
+
+        // 現在のモードに合わせて再描画
+        if (ndConfig.currentMode == MODE_PLAYER) {
+          disp.redraw();
+        } else if (ndConfig.currentMode == MODE_SERIAL) {
+          disp.serialModeDraw();
+        }
+        break;
+      }
+      case event::Up: {
+        if (cfgWindow.currentItemIndex != 0) {
+          cfgWindow.currentItemIndex--;
+          cfgWindow.drawItem(cfgWindow.currentItemIndex + 1, false);
+          cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
+          cfgWindow.drawFooter(false);
+        }
+        break;
+      }
+      case event::Down: {
+        if (cfgWindow.currentItemIndex != ndConfig.items.size() - 1) {
+          cfgWindow.currentItemIndex++;
+          cfgWindow.drawItem(cfgWindow.currentItemIndex - 1, false);
+          cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
+          cfgWindow.drawFooter(false);
+        }
+        break;
+      }
+      case event::Left: {
+        if (ndConfig.items[cfgWindow.currentItemIndex].index != 0) {
+          ndConfig.items[cfgWindow.currentItemIndex].index--;
+          // 言語はすぐ再描画
+          if (cfgWindow.currentItemIndex == CFG_LANG) {
+            cfgWindow.draw();
+          } else {
+            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
+            cfgWindow.drawFooter(false);
+          }
+          ndConfig.saveCfg();
+        }
+        break;
+      }
+      case event::Right: {
+        if (ndConfig.items[cfgWindow.currentItemIndex].index !=
+            ndConfig.items[cfgWindow.currentItemIndex].optionValues.size() - 1) {
+          ndConfig.items[cfgWindow.currentItemIndex].index++;
+          // 言語はすぐ再描画
+          if (cfgWindow.currentItemIndex == CFG_LANG) {
+            cfgWindow.draw();
+          } else {
+            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
+            cfgWindow.drawFooter(false);
+          }
+          ndConfig.saveCfg();
+        }
+        break;
+      }
+    }
   }
 }
 
@@ -867,6 +903,8 @@ void CFGWindow::drawFooter(bool toFrameBuffer) {
 CFGWindow cfgWindow = CFGWindow();
 
 // ビジュアルウィンドウ
-class VisualWindow {};
+void VisualWindow::init() {}
+void VisualWindow::show() {}
+void VisualWindow::close() {}
 
 VisualWindow visualWindow = VisualWindow();

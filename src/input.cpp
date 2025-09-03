@@ -6,8 +6,8 @@
 #include "file.h"
 #include "serialman.h"
 
-static QueueHandle_t xQueueInput;  // 入力のキュー
-static TaskHandle_t tskEventLoop;  // イベントループ
+QueueHandle_t xQueueInput = nullptr;
+TaskHandle_t tskEventLoop = nullptr;
 
 void inputTask(void *param) {
   while (1) {
@@ -45,11 +45,35 @@ void serialCheckerTask_(void *param) {
   }
 }
 
+// イベントループ
+void eventLoop(void *pvPrams) {
+  while (1) {
+    event event;
+    if (xQueueReceive(xQueueInput, &event, 0) == pdTRUE) {
+      cfgWindow.inputHandler(event);
+    }
+    vTaskDelay(66);
+  }
+}
+
+// イベント送信
+void sendEventToQueue(event ev) {
+  if (uxQueueSpacesAvailable(xQueueInput)) {
+    xQueueSend(xQueueInput, &ev, 0);
+  }
+}
+
 Input::Input() { pinMode(INPUT_PIN, ANALOG); }
 
 void Input::init() {
   // ボタン状態をチェックするタスク
   xTaskCreateUniversal(inputTask, "inputTask", 10000, NULL, 1, NULL, PRO_CPU_NUM);
+
+  // キュー作成
+  xQueueInput = xQueueCreate(2, sizeof(event));
+
+  // イベントループタスク
+  xTaskCreateUniversal(eventLoop, "eventloop", 10000, NULL, 1, &tskEventLoop, PRO_CPU_NUM);
 }
 
 void Input::inputHandler() {
@@ -57,7 +81,7 @@ void Input::inputHandler() {
 
   // 入力処理
   switch (disp.currentView) {
-    case ViewMode::Player: {  // プレイヤー
+    case ViewMode::Player: {  // プレイヤーのとき
       switch (inputBuffer) {
         case btnUP: {
           ndFile.dirPlay(1);
@@ -82,28 +106,26 @@ void Input::inputHandler() {
       }
       break;
     }
-    case ViewMode::Config: {  // 設定メニュー
+    case ViewMode::Config: {  // 設定メニューのとき
+
       switch (inputBuffer) {
-        case btnUP: {
-          cfgWindow.up();
+        case btnUP:
+          sendEventToQueue(event::Up);
           break;
-        }
-        case btnDOWN: {
-          cfgWindow.down();
+        case btnDOWN:
+          sendEventToQueue(event::Down);
           break;
-        }
-        case btnLEFT: {
-          cfgWindow.left();
+        case btnLEFT:
+          sendEventToQueue(event::Left);
           break;
-        }
-        case btnRIGHT: {
-          cfgWindow.right();
+        case btnRIGHT:
+          sendEventToQueue(event::Right);
           break;
-        }
-        case btnSELECT: {
-          cfgWindow.close();  // 設定ウィンドウ閉じる
+        case btnSELECT:
+          sendEventToQueue(event::Close);
           break;
-        }
+        default:
+          break;
       }
       break;
     }

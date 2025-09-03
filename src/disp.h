@@ -124,14 +124,11 @@ class CFGWindow {
 
   void init();
   void show();
-  void close();
+
   void draw();
   void drawItem(int index, bool toFrameBuffer);
   void drawFooter(bool toFrameBuffer);
-  void up();
-  void down();
-  void left();
-  void right();
+  void inputHandler(event event);
 };
 
 extern CFGWindow cfgWindow;
