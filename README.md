@@ -8,6 +8,9 @@ Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレ�
 <br>
 <br>
 
+## Schematic
+[schematic.pdf](https://github.com/user-attachments/files/22195744/schematic.pdf)
+
 ## Thanks to
 
 - Hiromasha for XGM parsing technichs at
