@@ -11,6 +11,7 @@
 #include "file.h"
 #include "fonts.h"
 #include "input.h"
+#include "vgm.h"
 
 #define C_BASEBG TFT_BLACK
 #define C_BASEFG TFT_WHITE
@@ -30,7 +31,7 @@
 #define C_FOOTER_ACTIVE 0x530c    // 0x506065
 #define C_FOOTER_INACTIVE 0xbe1a  // 0xbbc0d0
 
-#define ITEM_HEIGHT 32
+#define ITEM_HEIGHT 32  // 設定項目1つの高さ
 
 class LGFX : public lgfx::LGFX_Device {
  private:
@@ -60,7 +61,6 @@ enum class ViewMode { Player, Config, Serial, Visual };
 class Disp {
  private:
   LGFX_Sprite _sprHeader;  // ヘッダ部分のスプライト
-
  public:
   bool init();                      // 初期化
   void drawBG();                    // 背景描画
@@ -71,6 +71,7 @@ class Disp {
   void stopTimer();                 // 描画タイマー停止
   void updateHeader(uint64_t sec);  // ヘッダ更新
 
+  bool stopTimerDrawing;                    // タイマー描画更新停止
   tDispData dispData;                       // 各種表示テキストなど
   ViewMode currentView = ViewMode::Player;  // デフォルトはプレーヤー画面
   OpenFontRender render;                    // OpenFontRenderer
@@ -123,8 +124,6 @@ class CFGWindow {
   int currentItemIndex = 0;
 
   void init();
-  void show();
-
   void draw();
   void drawItem(int index, bool toFrameBuffer);
   void drawFooter(bool toFrameBuffer);
@@ -136,10 +135,14 @@ extern CFGWindow cfgWindow;
 // ビジュアルクラス
 class VisualWindow {
  private:
+  boolean drawKeyboard(LGFX_Sprite& sprite, t_device device);
+
  public:
   void init();
-  void show();
+  void draw();
+  void update();
   void close();
+  void inputHandler(event ev);
 };
 
 extern VisualWindow visualWindow;

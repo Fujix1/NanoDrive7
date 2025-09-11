@@ -95,6 +95,9 @@ void setup() {
   FM.begin();
   FM.reset();
 
+  // ビジュアル初期化
+  visualWindow.init();
+
   // 動作切り替え
   // if (ndConfig.currentMode == MODE_PLAYER) {
   // SD読み込み

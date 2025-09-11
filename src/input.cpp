@@ -50,7 +50,17 @@ void eventLoop(void *pvPrams) {
   while (1) {
     event event;
     if (xQueueReceive(xQueueInput, &event, 0) == pdTRUE) {
-      cfgWindow.inputHandler(event);
+      // 表示中の画面にイベントを送信
+      switch (disp.currentView) {
+        case ViewMode::Config:
+          cfgWindow.inputHandler(event);
+          break;
+        case ViewMode::Visual:
+          visualWindow.inputHandler(event);
+          break;
+        default:
+          break;
+      }
     }
     vTaskDelay(66);
   }
@@ -100,13 +110,14 @@ void Input::inputHandler() {
           break;
         }
         case btnSELECT: {
-          cfgWindow.show();  // 設定ウィンドウ表示
+          disp.currentView = ViewMode::Config;
+          sendEventToQueue(event::Open);  // 設定ウィンドウ表示
           break;
         }
       }
       break;
     }
-    case ViewMode::Config: {  // 設定メニューのとき
+    case ViewMode::Config: {  // 設定ウィンドウのとき
 
       switch (inputBuffer) {
         case btnUP:
@@ -122,7 +133,9 @@ void Input::inputHandler() {
           sendEventToQueue(event::Right);
           break;
         case btnSELECT:
-          sendEventToQueue(event::Close);
+          sendEventToQueue(event::Close);  // 閉じる
+          // ウインドウ切り替えは CLose 処理でやる
+          sendEventToQueue(event::Open);  // ビジュアルウィンドウ表示
           break;
         default:
           break;
@@ -130,6 +143,26 @@ void Input::inputHandler() {
       break;
     }
     case ViewMode::Visual: {  // ビジュアル
+      switch (inputBuffer) {
+        case btnUP:
+          ndFile.dirPlay(1);
+          break;
+        case btnDOWN:
+          ndFile.dirPlay(-1);
+          break;
+        case btnLEFT:
+          ndFile.filePlay(1);
+          break;
+        case btnRIGHT:
+          ndFile.filePlay(-1);
+          break;
+        case btnSELECT:
+          disp.stopTimerDrawing = true;    // タイマー描画更新停止
+          sendEventToQueue(event::Close);  // 閉じてプレイヤーへ
+          break;
+        default:
+          break;
+      }
       break;
     }
     case ViewMode::Serial: {  // シリアル
@@ -149,7 +182,9 @@ void Input::inputHandler() {
           break;
         }
         case btnSELECT: {
-          cfgWindow.show();  // 設定ウィンドウ表示
+          // Config 画面を開く
+          disp.currentView = ViewMode::Config;
+          sendEventToQueue(event::Open);
           break;
         }
       }

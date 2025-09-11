@@ -3,7 +3,6 @@
 #include "pics.h"
 
 static PNG png;
-static bool _stopTimerDrawing = true;  // タイマーによる描画更新を止める
 
 LGFX::LGFX(void) {
   {                                     // バス制御の設定を行います。
@@ -66,6 +65,9 @@ static LGFX_Sprite frameBuffer(&lcd);
 static LGFX_Sprite sprPng(&lcd);
 static LGFX_Sprite sprPngResized(&lcd);
 static String lastPNGPath = "";
+
+static LGFX_Sprite keyboardBuffer(&lcd);     // キーボード用
+static LGFX_Sprite keyboardBufferSub(&lcd);  // キーボード用
 
 static TimerHandle_t hDispTimer;
 
@@ -179,29 +181,28 @@ void pngDraw(PNGDRAW* pDraw) {
 }
 
 //---------------------------------------------------------------------------
-// Timer Handler
+// 描画更新タイマー処理
 void dispTimerHandler(void* param) {
-  if (disp.currentView != ViewMode::Player) {
-    return;
-  }
+  // プレイヤーのとき
+  if (disp.currentView == ViewMode::Player) {
+    if (!disp.stopTimerDrawing) {
+      if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
+        lblTitle.update();
+        lblGame.update();
+        lblAuthor.update();
+        lblSystem.update();
+        xSemaphoreGive(spFrameBuffer);
+      }
 
-  // 画面更新停止か
-  // if (ndConfig.get(CFG_UPDATE) == UPDATE_NO) {
-  //  return;
-  //}
-
-  if (!_stopTimerDrawing) {
-    if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
-      lblTitle.update();
-      lblGame.update();
-      lblAuthor.update();
-      lblSystem.update();
-      xSemaphoreGive(spFrameBuffer);
+      uint64_t sec = vgm.getCurrentTimeSec();
+      if (disp.dispData.time != sec) {
+        disp.updateHeader(sec);
+        disp.dispData.time = sec;
+      }
     }
-    uint64_t sec = vgm.getCurrentTimeSec();
-    if (disp.dispData.time != sec) {
-      disp.updateHeader(sec);
-      disp.dispData.time = sec;
+  } else if (disp.currentView == ViewMode::Visual) {
+    if (!disp.stopTimerDrawing) {
+      visualWindow.update();
     }
   }
 }
@@ -332,7 +333,7 @@ bool Disp::init() {
   sprPngResized.setPsram(true);
   sprPngResized.createSprite(LCD_W + 1, 125);
 
-  _stopTimerDrawing = true;
+  this->stopTimerDrawing = true;
 
   // タイマー生成
   hDispTimer = xTimerCreate("DISP_TIMER", DISP_TIMER_INTERVAL, pdTRUE, NULL, dispTimerHandler);
@@ -358,7 +359,7 @@ void Disp::drawBG() {  // 背景描画
 void Disp::redraw() {  // プレーヤー描画
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
 
-  _stopTimerDrawing = true;
+  this->stopTimerDrawing = true;
   this->drawBG();
   render.setUseRenderTask(false);
   render.setDrawer(frameBuffer);
@@ -438,7 +439,7 @@ void Disp::redraw() {  // プレーヤー描画
   // uint32_t t1 = millis();
   // Serial.printf("pushSprite time: %d ms\n", t1 - t0);
 
-  _stopTimerDrawing = false;
+  this->stopTimerDrawing = false;
   xSemaphoreGive(spFrameBuffer);
 }
 
@@ -487,7 +488,7 @@ void Disp::updateHeader(uint64_t sec) {
 // シリアルモード画面描画
 void Disp::serialModeDraw() {
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
-  _stopTimerDrawing = true;
+  this->stopTimerDrawing = true;
   this->drawBG();
   render.setUseRenderTask(false);
   render.setDrawer(frameBuffer);
@@ -555,89 +556,16 @@ void Disp::serialModeDraw() {
 Disp disp = Disp();
 
 //---------------------------------------------------------------------------
-// 設定画面クラスなど
+// 設定画面クラス
+void CFGWindow::init() {
+  _sprite.createSprite(LCD_W, ITEM_HEIGHT);
+  _sprFooter.createSprite(120, 23);
 
-// CFGウィンドウのイベント処理
-void CFGWindowEventLoop(void* pvPrams) {
-  while (1) {
-    event event;
-    if (xQueueReceive(xQueueInput, &event, 0) == pdTRUE) {
-      switch (event) {
-        case event::Open: {
-          cfgWindow.draw();
-          break;
-        }
-        case event::Close: {
-          cfgWindow.isVisible = false;
-          disp.currentView = ViewMode::Player;
-
-          // モードが違えば再起動
-          if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
-            ESP.restart();
-            return;
-          }
-
-          // 現在のモードに合わせて再描画
-          if (ndConfig.currentMode == MODE_PLAYER) {
-            disp.redraw();
-          } else if (ndConfig.currentMode == MODE_SERIAL) {
-            disp.serialModeDraw();
-          }
-          break;
-        }
-        case event::Up: {
-          if (cfgWindow.currentItemIndex != 0) {
-            cfgWindow.currentItemIndex--;
-            cfgWindow.drawItem(cfgWindow.currentItemIndex + 1, false);
-            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-            cfgWindow.drawFooter(false);
-          }
-          break;
-        }
-        case event::Down: {
-          if (cfgWindow.currentItemIndex != ndConfig.items.size() - 1) {
-            cfgWindow.currentItemIndex++;
-            cfgWindow.drawItem(cfgWindow.currentItemIndex - 1, false);
-            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-            cfgWindow.drawFooter(false);
-          }
-          break;
-        }
-        case event::Left: {
-          if (ndConfig.items[cfgWindow.currentItemIndex].index != 0) {
-            ndConfig.items[cfgWindow.currentItemIndex].index--;
-            // 言語はすぐ再描画
-            if (cfgWindow.currentItemIndex == CFG_LANG) {
-              cfgWindow.draw();
-            } else {
-              cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-              cfgWindow.drawFooter(false);
-            }
-            ndConfig.saveCfg();
-          }
-          break;
-        }
-        case event::Right: {
-          if (ndConfig.items[cfgWindow.currentItemIndex].index !=
-              ndConfig.items[cfgWindow.currentItemIndex].optionValues.size() - 1) {
-            ndConfig.items[cfgWindow.currentItemIndex].index++;
-            // 言語はすぐ再描画
-            if (cfgWindow.currentItemIndex == CFG_LANG) {
-              cfgWindow.draw();
-            } else {
-              cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-              cfgWindow.drawFooter(false);
-            }
-            ndConfig.saveCfg();
-          }
-          break;
-        }
-      }
-    }
-    vTaskDelay(66);
-  }
+  // ヘッダーの初期化
+  initHeaders();
 }
 
+// ヘッダ部初期化
 void CFGWindow::initHeaders() {
   // スプライトが既に初期化されているかチェック
   if (_sprHeaderJP.width() > 0 && _sprHeaderEN.width() > 0) return;
@@ -673,36 +601,20 @@ void CFGWindow::initHeaders() {
   disp.render.unloadFont();
 }
 
-void CFGWindow::init() {
-  _sprite.createSprite(LCD_W, ITEM_HEIGHT);
-  _sprFooter.createSprite(120, 23);
-
-  // ヘッダーの初期化
-  initHeaders();
-}
-
-void CFGWindow::show() {
-  if (isVisible) return;
-
-  if (uxQueueSpacesAvailable(xQueueInput)) {
-    isVisible = true;
-    disp.currentView = ViewMode::Config;
-
-    event event = event::Open;
-    xQueueSend(xQueueInput, &event, 0);
-  }
-}
-
+// イベントキューはサブコアで処理するのでメインに影響しない
 void CFGWindow::inputHandler(event event) {
   if (disp.currentView == ViewMode::Config) {
     switch (event) {
       case event::Open: {
-        cfgWindow.draw();
+        isVisible = true;
+        this->draw();
         break;
       }
       case event::Close: {
-        cfgWindow.isVisible = false;
-        disp.currentView = ViewMode::Player;
+        Serial.printf("CFG Window::Close event.\n");
+        disp.stopTimerDrawing = true;  // タイマー更新停止
+        isVisible = false;
+        disp.currentView = ViewMode::Visual;
 
         // モードが違えば再起動
         if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
@@ -710,56 +622,59 @@ void CFGWindow::inputHandler(event event) {
           return;
         }
 
+        // disp.currentView = ViewMode::Player;
+        // disp.currentView = ViewMode::Visual;
+
         // 現在のモードに合わせて再描画
-        if (ndConfig.currentMode == MODE_PLAYER) {
+        /*if (ndConfig.currentMode == MODE_PLAYER) {
           disp.redraw();
         } else if (ndConfig.currentMode == MODE_SERIAL) {
           disp.serialModeDraw();
-        }
+        }*/
         break;
       }
       case event::Up: {
-        if (cfgWindow.currentItemIndex != 0) {
-          cfgWindow.currentItemIndex--;
-          cfgWindow.drawItem(cfgWindow.currentItemIndex + 1, false);
-          cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-          cfgWindow.drawFooter(false);
+        if (this->currentItemIndex != 0) {
+          this->currentItemIndex--;
+          this->drawItem(this->currentItemIndex + 1, false);
+          this->drawItem(this->currentItemIndex, false);
+          this->drawFooter(false);
         }
         break;
       }
       case event::Down: {
-        if (cfgWindow.currentItemIndex != ndConfig.items.size() - 1) {
-          cfgWindow.currentItemIndex++;
-          cfgWindow.drawItem(cfgWindow.currentItemIndex - 1, false);
-          cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-          cfgWindow.drawFooter(false);
+        if (this->currentItemIndex != ndConfig.items.size() - 1) {
+          this->currentItemIndex++;
+          this->drawItem(this->currentItemIndex - 1, false);
+          this->drawItem(this->currentItemIndex, false);
+          this->drawFooter(false);
         }
         break;
       }
       case event::Left: {
-        if (ndConfig.items[cfgWindow.currentItemIndex].index != 0) {
-          ndConfig.items[cfgWindow.currentItemIndex].index--;
+        if (ndConfig.items[this->currentItemIndex].index != 0) {
+          ndConfig.items[this->currentItemIndex].index--;
           // 言語はすぐ再描画
-          if (cfgWindow.currentItemIndex == CFG_LANG) {
-            cfgWindow.draw();
+          if (this->currentItemIndex == CFG_LANG) {
+            this->draw();
           } else {
-            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-            cfgWindow.drawFooter(false);
+            this->drawItem(this->currentItemIndex, false);
+            this->drawFooter(false);
           }
           ndConfig.saveCfg();
         }
         break;
       }
       case event::Right: {
-        if (ndConfig.items[cfgWindow.currentItemIndex].index !=
-            ndConfig.items[cfgWindow.currentItemIndex].optionValues.size() - 1) {
-          ndConfig.items[cfgWindow.currentItemIndex].index++;
+        if (ndConfig.items[this->currentItemIndex].index !=
+            ndConfig.items[this->currentItemIndex].optionValues.size() - 1) {
+          ndConfig.items[this->currentItemIndex].index++;
           // 言語はすぐ再描画
-          if (cfgWindow.currentItemIndex == CFG_LANG) {
-            cfgWindow.draw();
+          if (this->currentItemIndex == CFG_LANG) {
+            this->draw();
           } else {
-            cfgWindow.drawItem(cfgWindow.currentItemIndex, false);
-            cfgWindow.drawFooter(false);
+            this->drawItem(this->currentItemIndex, false);
+            this->drawFooter(false);
           }
           ndConfig.saveCfg();
         }
@@ -802,7 +717,7 @@ void CFGWindow::draw() {
   drawFooter(true);
 
   for (int i = 0; i < ndConfig.items.size(); i++) {
-    cfgWindow.drawItem(i, true);
+    this->drawItem(i, true);
   }
 
   disp.render.unloadFont();
@@ -870,11 +785,11 @@ void CFGWindow::drawFooter(bool toFrameBuffer) {
 
   _sprFooter.fillSprite(TFT_WHITE);
 
-  up = (cfgWindow.currentItemIndex != 0);
-  down = (cfgWindow.currentItemIndex != ndConfig.items.size() - 1);
-  left = (ndConfig.items[cfgWindow.currentItemIndex].index != 0);
-  right = (ndConfig.items[cfgWindow.currentItemIndex].index !=
-           ndConfig.items[cfgWindow.currentItemIndex].optionValues.size() - 1);
+  up = (this->currentItemIndex != 0);
+  down = (this->currentItemIndex != ndConfig.items.size() - 1);
+  left = (ndConfig.items[this->currentItemIndex].index != 0);
+  right =
+      (ndConfig.items[this->currentItemIndex].index != ndConfig.items[this->currentItemIndex].optionValues.size() - 1);
 
   _sprFooter.fillRoundRect(4, 0, 27, 23, 2, up ? C_FOOTER_ACTIVE : C_FOOTER_INACTIVE);
   _sprFooter.fillRoundRect(33, 0, 27, 23, 2, color = down ? C_FOOTER_ACTIVE : C_FOOTER_INACTIVE);
@@ -903,8 +818,165 @@ void CFGWindow::drawFooter(bool toFrameBuffer) {
 CFGWindow cfgWindow = CFGWindow();
 
 // ビジュアルウィンドウ
-void VisualWindow::init() {}
-void VisualWindow::show() {}
+void VisualWindow::init() {
+  // フレームバッファスプライト作成
+  // frameBuffer.setPsram(true);
+  keyboardBuffer.createSprite(keyboard2Width, keyboard2Height);
+  keyboardBuffer.pushImage(0, 0, keyboard2Width, keyboard2Height, keyboard2);
+  keyboardBufferSub.createSprite(keyboard2Width, keyboard2Height);
+}
+
 void VisualWindow::close() {}
+
+void VisualWindow::draw() {
+  // uint32_t t0 = millis();
+  if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
+    frameBuffer.pushImage(0, 0, 170, 320, keyboard);
+    frameBuffer.pushSprite(0, 0);
+    xSemaphoreGive(spFrameBuffer);
+  }
+  // uint32_t t1 = millis();
+  //  Serial.printf("VisualWindow::draw time: %d ms\n", t1 - t0);
+  disp.stopTimerDrawing = false;  // タイマー更新再開, タイマー側のupdateイベントが先に起こるので
+}
+
+// 更新処理
+void VisualWindow::update() {
+  // uint32_t t0 = millis();
+
+  // キー情報更新
+  if (disp.currentView == ViewMode::Visual) {
+    // キーボードのスプライト配置
+    keyboardBufferSub.setColor(TFT_RED);
+
+    // YM2413
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YM2413);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(2, 0);
+    }
+
+    // YMF262
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YMF262);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(30, 0);
+    }
+
+    // YM2203 FM0
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YM2203_FM0);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(58, 0);
+    }
+
+    // YM2203 SSG0
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YM2203_SSG0);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(86, 0);
+    }
+
+    // YM2203 FM1
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YM2203_FM1);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(114, 0);
+    }
+
+    // YM2203 SSG1
+    if (xSemaphoreTake(keyInfoMutex, 0) == pdTRUE) {  // セマフォ待たない
+      keyboardBuffer.pushSprite(&keyboardBufferSub, 0, 0);
+      drawKeyboard(keyboardBufferSub, YM2203_SSG1);
+      xSemaphoreGive(keyInfoMutex);
+      keyboardBufferSub.pushSprite(142, 0);
+    }
+  }
+
+  // uint32_t t1 = millis();
+  // Serial.printf("VisualWindow::update time: %d ms\n", t1 - t0);
+}
+
+// 個別のキーボードを描画する
+// 戻り値: true 描画更新した
+boolean VisualWindow::drawKeyboard(LGFX_Sprite& sprite, t_device device) {
+  // 鍵盤描画位置用定数
+  const int notePos[12] = {5, 7, 10, 12, 15, 20, 22, 25, 27, 30, 32, 35};
+  const int noteWidth[12] = {4, 3, 4, 3, 4, 4, 3, 4, 3, 4, 3, 4};
+
+  bool touched = false;
+  sprite.setColor(TFT_RED);
+
+  for (int i = 0; i < device_channels[device]; i++) {
+    int oct = vgm.keyInfo[device][i].octave;
+    int note = vgm.keyInfo[device][i].note;
+    if (oct != 0) {
+      touched = true;
+      if (noteWidth[note] == 3) {
+        sprite.fillRect(0, keyboard2Height - ((oct - 1) * 35 + notePos[note]), 15, 3);
+      } else {
+        sprite.fillRect(16, keyboard2Height - ((oct - 1) * 35 + notePos[note]), 10, 4);
+        switch (note) {
+          case 0:
+          case 5:
+            sprite.fillRect(0, keyboard2Height - ((oct - 1) * 35 + notePos[note]) + 1, 16, 3);
+            break;
+          case 4:
+          case 11:
+            sprite.fillRect(0, keyboard2Height - ((oct - 1) * 35 + notePos[note]), 16, 3);
+            break;
+          case 2:
+          case 7:
+          case 9:
+            sprite.fillRect(0, keyboard2Height - ((oct - 1) * 35 + notePos[note]) + 1, 16, 2);
+            break;
+        }
+      }
+    }
+  }
+  return touched;
+}
+
+// イベント処理
+void VisualWindow::inputHandler(event ev) {
+  switch (ev) {
+    case event::Open: {
+      this->draw();
+      break;
+    }
+    case event::Close: {
+      // プレイヤー画面へ遷移
+      disp.currentView = ViewMode::Player;
+      disp.redraw();
+      disp.stopTimerDrawing = false;  // タイマー描画更新再開
+
+      // 現在のモードに合わせて再描画
+      /*if (ndConfig.currentMode == MODE_PLAYER) {
+        disp.redraw();
+      } else if (ndConfig.currentMode == MODE_SERIAL) {
+        disp.serialModeDraw();
+      }*/
+
+      break;
+    }
+    case event::Up: {
+      break;
+    }
+    case event::Down: {
+      break;
+    }
+    case event::Left: {
+      break;
+    }
+    case event::Right: {
+      break;
+    }
+  }
+}
 
 VisualWindow visualWindow = VisualWindow();

@@ -74,7 +74,7 @@ void NJU72341::init(uint16_t fadeOutDuration, bool NJU72342) {
     _fadeOutDuration = fadeOutDuration;
   }
 
-  hFadeOutTimer = xTimerCreate("FADEOUT_TIMER", _fadeOutDuration / FADEOUT_STEPS, pdTRUE, NULL, fadeOutTimerHandler);
+  hFadeOutTimer = xTimerCreate("FO_TIMER", _fadeOutDuration / FADEOUT_STEPS, pdTRUE, NULL, fadeOutTimerHandler);
 }
 
 void NJU72341::setFadeoutDuration(uint16_t fadeOutDuration) {

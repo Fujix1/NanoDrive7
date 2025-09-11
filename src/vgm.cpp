@@ -8,6 +8,9 @@
 #include "file.h"
 #include "fm.h"
 
+// セマフォ実体
+SemaphoreHandle_t keyInfoMutex = xSemaphoreCreateMutex();
+
 //---------------------------------------------------------------------
 static std::string wstringToUTF8(const std::wstring& src) {
   std::wstring_convert<std::codecvt_utf8<wchar_t> > converter;
@@ -46,12 +49,36 @@ VGM::VGM() {
   clockSlot[CHIP3] = CHIP3_CLOCK;
 }
 
+// 秩父別キー状態をリセットする
+void VGM::resetKeyInfo() {
+  if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+    for (int i = 0; i < DEVICE_COUNT; i++) {
+      for (int j = 0; j < device_channels[i]; j++) {
+        this->keyInfo[i][j] = (struct NoteInfo){0, 0};
+      }
+    }
+    xSemaphoreGive(keyInfoMutex);
+    Serial.printf("Key Info Reset.\n");
+  }
+}
+
 //---------------------------------------------------------------------
 // vgm 再生準備
 bool VGM::ready() {
   vgmLoaded = false;
   xgmLoaded = false;
   ndFile.pos = 0;
+
+  // レジスタ初期化
+  _ym2203_SSG_reg[2][16] = {0};
+  _ym2203_FM_reg[2][7] = {0};
+  _ym2413_reg[40] = {0};
+  _ymf262_reg[2][256] = {0};
+
+  this->resetKeyInfo();
+
+  Serial.printf("Free Heap: %d\n", esp_get_free_heap_size());
+  Serial.printf("Free PSRAM: %d\n", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
   format = FORMAT_UNKNOWN;
 
@@ -79,6 +106,8 @@ bool VGM::ready() {
   // total # samples
   // totalSamples = get_ui32_at(0x18);
 
+  Serial.printf("VGM version: %x\n", version);
+
   // loop offset
   loopOffset = ndFile.get_ui32_at(0x1c);
   // vg3 offset
@@ -88,6 +117,7 @@ bool VGM::ready() {
 
   // data offset
   dataOffset = (version >= 0x150) ? ndFile.get_ui32_at(0x34) + 0x34 : 0x40;
+  Serial.printf("VGM dataOffset: %x\n", dataOffset);
   ndFile.pos = dataOffset;
 
   // Setup Clocks
@@ -232,8 +262,6 @@ bool VGM::ready() {
   }
 
   u32_t ymf262_clock = (version >= 0x151 && dataOffset >= 0x60) ? ndFile.get_ui32_at(0x5c) : 0;  // OPL3
-  Serial.printf("version: %x\n", version);
-  Serial.printf("dataOffset: %x\n", dataOffset);
   // Serial.printf("ymf262_clock: %d (0x%08x)\n", ymf262_clock, ymf262_clock);
   if (ymf262_clock) {
     // Serial.printf("YMF262 clock detected: %.3f MHz\n", (double)ymf262_clock / 1000000.0);
@@ -656,6 +684,43 @@ void VGM::vgmProcessMain() {
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegister(reg, dat, 0);
+
+      _ym2203_SSG_reg[0][reg] = dat;
+
+      switch (reg) {
+        case 0x00 ... 0x05: {
+          switch (reg) {
+            case 0x01:
+            case 0x03:
+            case 0x05: {
+              int ch = (reg - 1) / 2;
+              if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
+                double psgFreq = _getPSGFreq(0, ch);
+                NoteInfo ni = freqToNote(psgFreq);
+                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+                  this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+                  xSemaphoreGive(keyInfoMutex);
+                }
+              }
+              break;
+            }
+          }
+          break;
+        }
+        case 0x08 ... 0x0a: {
+          int ch = reg - 0x08;
+          if ((dat & 0x0F) != 0) {  // 音が出てるとき
+            double psgFreq = _getPSGFreq(0, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
+            }
+          }
+          break;
+        }
+      }
+
       break;
 #endif
 
@@ -686,6 +751,22 @@ void VGM::vgmProcessMain() {
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegister(reg, dat, 3);
+
+      if (reg <= 0x38) {
+        _ym2413_reg[reg] = dat;  // レジスタ保存
+      }
+
+      // キーオンオフのとき
+      if ((reg >= 0x20 && reg <= 0x28) || (reg >= 0x10 && reg <= 0x18)) {
+        int channel = (reg >= 0x20) ? reg - 0x20 : reg - 0x10;  // チャンネル
+        double ym2413Freq = _getYM2413Freq(channel);
+        NoteInfo ni = freqToNote(ym2413Freq);
+        if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+          this->keyInfo[YM2413][channel] = (struct NoteInfo)ni;
+          xSemaphoreGive(keyInfoMutex);
+        }
+      }
+
       break;
 #endif
 
@@ -723,6 +804,67 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
 #ifdef USE_YM2203_0
       FM.setRegister(reg, dat, 0);
+
+      switch (reg) {
+        case 0x00 ... 0x05: {  // SSG音程
+          _ym2203_SSG_reg[0][reg] = dat;
+          switch (reg) {
+            case 0x01:
+            case 0x03:
+            case 0x05: {
+              int ch = (reg - 1) / 2;
+              if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
+                double psgFreq = _getPSGFreq(0, ch);
+                NoteInfo ni = freqToNote(psgFreq);
+                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+                  this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+                  xSemaphoreGive(keyInfoMutex);
+                }
+              }
+              break;
+            }
+          }
+          break;
+        }
+        case 0x08 ... 0x0a: {  // SSG音量
+          _ym2203_SSG_reg[0][reg] = dat;
+          int ch = reg - 0x08;
+          if ((dat & 0x0F) != 0) {  // 音が出てるとき
+            double psgFreq = _getPSGFreq(0, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
+            }
+          }
+          break;
+        }
+
+        case 0xa0 ... 0xa6: {                   // FM の音程
+          _ym2203_FM_reg[0][reg - 0xa0] = dat;  // レジスタ保持
+          break;
+        }
+        case 0x28: {                // キーオンオフ
+          if ((dat & 0xF0) != 0) {  // 上位 4 bitいずれかあればキーオンとする
+            int channel = dat & 0x03;
+            double ym2203FMFreq = _getFMFreq(0, channel);
+            NoteInfo ni = freqToNote(ym2203FMFreq);
+
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_FM0][channel] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
+            }
+          } else if ((dat & 0xF0) == 0) {  // キーオフ
+            int channel = dat & 0x03;
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_FM0][channel] = (struct NoteInfo){0, 0};
+              xSemaphoreGive(keyInfoMutex);
+            }
+          }
+          break;
+        }
+      }
+
 #endif
       break;
     case 0xA5:  // YM2203_1
@@ -730,6 +872,79 @@ void VGM::vgmProcessMain() {
       dat = ndFile.get_ui8();
 #ifdef USE_YM2203_1
       FM.setRegister(reg, dat, 1);
+
+      switch (reg) {
+        case 0x00 ... 0x05: {  // SSG音程
+          _ym2203_SSG_reg[1][reg] = dat;
+          switch (reg) {
+            case 0x01:
+            case 0x03:
+            case 0x05: {
+              int ch = (reg - 1) / 2;
+              if (_ym2203_SSG_reg[1][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
+                double psgFreq = _getPSGFreq(1, ch);
+                NoteInfo ni = freqToNote(psgFreq);
+                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+                  this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
+                  xSemaphoreGive(keyInfoMutex);
+                }
+              }
+              break;
+            }
+          }
+          break;
+        }
+        case 0x08 ... 0x0a: {  // SSG音量
+          _ym2203_SSG_reg[1][reg] = dat;
+          int ch = reg - 0x08;
+          if ((dat & 0x0F) != 0) {  // 音が出てるとき
+            double psgFreq = _getPSGFreq(1, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
+            }
+          }
+          break;
+        }
+        case 0xa0 ... 0xa6: {                   // FM の音程
+          _ym2203_FM_reg[1][reg - 0xa0] = dat;  // レジスタ保持
+          break;
+        }
+
+        case 0x28: {                // キーオンオフ
+          if ((dat & 0xF0) != 0) {  // 上位 4 bitいずれかあればキーオンとする
+            int channel = dat & 0x03;
+            double ym2203FMFreq = _getFMFreq(1, channel);
+            NoteInfo ni = freqToNote(ym2203FMFreq);
+
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              keyInfo[YM2203_FM1][channel] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
+            }
+
+            // Serial.printf("FM1 ch %d: KEY ON %s%d\n", channel, String(NOTE_NAMES[ni.note]), ni.octave);
+            /*Serial.printf("YM2203 FM1 - ch0: O%d-%d, ch1: O%d-%d, ch2: O%d-%d\n", keyInfo[YM2203_FM1][0].octave,
+                          keyInfo[YM2203_FM1][0].note, keyInfo[YM2203_FM1][1].octave, keyInfo[YM2203_FM1][1].note,
+                          keyInfo[YM2203_FM1][2].octave, keyInfo[YM2203_FM1][2].note);
+*/
+          } else if ((dat & 0xF0) == 0) {  // キーオフ
+            int channel = dat & 0x03;
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              keyInfo[YM2203_FM1][channel] = (struct NoteInfo){0, 0};
+              xSemaphoreGive(keyInfoMutex);
+            }
+
+            // double ym2203FMFreq = _getFMFreq(1, channel);
+            // NoteInfo ni = freqToNote(ym2203FMFreq);
+            // Serial.printf("FM1 ch %d: KEY OFF %s%d\n", channel, String(NOTE_NAMES[ni.note]), ni.octave);
+            /*Serial.printf("YM2203 FM1 - ch0: O%d-%d, ch1: O%d-%d, ch2: O%d-%d\n", keyInfo[YM2203_FM1][0].octave,
+                          keyInfo[YM2203_FM1][0].note, keyInfo[YM2203_FM1][1].octave, keyInfo[YM2203_FM1][1].note,
+                          keyInfo[YM2203_FM1][2].octave, keyInfo[YM2203_FM1][2].note);
+          */}
+            break;
+        }
+      }
 #endif
       break;
 
@@ -757,11 +972,35 @@ void VGM::vgmProcessMain() {
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegisterOPL3(0, reg, dat, 2);
+      _ymf262_reg[0][reg] = dat;  // レジスタ保存
+
+      if ((reg >= 0xA0 && reg <= 0xA8) || (reg >= 0xB0 && reg <= 0xB8)) {
+        int channel = reg & 0x0F;  // 0〜8
+        double freq = _getYMF262Freq(0, channel);
+        NoteInfo ni = freqToNote(freq);
+        if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {
+          this->keyInfo[YMF262][channel] = ni;
+          xSemaphoreGive(keyInfoMutex);
+        }
+        Serial.printf("YMF262:A0:ch %d O%d %d\n", channel, ni.octave, ni.note);
+      }
       break;
     case 0x5F:  // YMF262 Reg Array 1
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
       FM.setRegisterOPL3(1, reg, dat, 2);
+      _ymf262_reg[1][reg] = dat;  // レジスタ保存
+
+      if ((reg >= 0xA0 && reg <= 0xA8) || (reg >= 0xB0 && reg <= 0xB8)) {
+        int channel = (reg & 0x0F) + 9;  // 9〜17
+        double freq = _getYMF262Freq(1, reg & 0x0F);
+        NoteInfo ni = freqToNote(freq);
+        if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {
+          this->keyInfo[YMF262][channel] = ni;
+          xSemaphoreGive(keyInfoMutex);
+        }
+        Serial.printf("YMF262:A1:ch %d O%d %d\n", channel, ni.octave, ni.note);
+      }
       break;
 #endif
 

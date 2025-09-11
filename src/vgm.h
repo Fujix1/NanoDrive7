@@ -1,11 +1,13 @@
 #ifndef VGM_H
 #define VGM_H
 
+#include <math.h>
+
 #include <vector>
 
 #include "SI5351.hpp"
 #include "common.h"
-#include "disp.h"
+#include "freertos/semphr.h"
 
 #define XGM1_MAX_PCM_CH 8
 #define XGM1_PCM_DELAY 68
@@ -99,6 +101,51 @@ typedef enum { CLK_0, CLK_1, CLK_2, CLK_NONE, CLK_FIXED } t_clockSlot;
 const std::vector<String> CHIP_LABEL = {"",       "SN76489", "SN76489", "YM2413", "YM2612", "YM2151", "YM2203",
                                         "YM2203", "YM2608",  "YM2610",  "YM3526", "YM3812", "AY8910", "YMF262"};
 
+// デバイス定義
+typedef enum {
+  YM2413,
+  YMF262,
+  YM2203_FM0,
+  YM2203_FM1,
+  YM2203_SSG0,
+  YM2203_SSG1,
+  DEVICE_COUNT  // デバイスの総数
+} t_device;
+
+#define MAX_CHANNELS 18
+
+// デバイスごとのチャンネル数
+static const int device_channels[DEVICE_COUNT] = {
+    [YM2413] = 9, [YMF262] = 18, [YM2203_FM0] = 3, [YM2203_FM1] = 3, [YM2203_SSG0] = 3, [YM2203_SSG1] = 3};
+
+// 音階情報
+struct NoteInfo {
+  int octave;  // 1〜8, これ以外はキーオフ扱い
+  int note;    // 0=C, 1=C#, 2=D, 3=D#, 4=E, ..., 9=A, 10=A#, 11=B
+};
+
+// 周波数から音階に変換
+inline NoteInfo freqToNote(double freq) {
+  if (freq <= 0) return {0, 0};
+
+  // A4 = 440Hz を基準
+  double n = 12.0 * log2(freq / 440.0);
+  // A=9 に合わせる
+  int noteIndexFromC0 = (int)round(n) + 57;
+
+  if (noteIndexFromC0 < 12) {  // 音域外, C1未満
+    return {0, 0};
+  }
+
+  int octave = noteIndexFromC0 / 12;
+  int note = noteIndexFromC0 % 12;
+
+  return {octave, note};
+}
+
+// 秩父別キー状態セマフォ
+extern SemaphoreHandle_t keyInfoMutex;
+
 class VGM {
  public:
   t_format format;
@@ -115,7 +162,13 @@ class VGM {
   byte chipSlot[14];
   byte clockSlot[14];  // クロック使用番号
 
-  std::vector<u8_t> data;  // VGM データ
+  // VGM データ
+  static constexpr byte NUM_CHANNELS = 6;
+  static constexpr byte NUM_OCTAVES = 8;
+  static constexpr byte NUM_KEYS = 12;
+
+  // チップデバイスチャンネル別キー状態
+  struct NoteInfo keyInfo[DEVICE_COUNT][MAX_CHANNELS];
 
   bool vgmLoaded = false;
   bool xgmLoaded = false;
@@ -124,6 +177,8 @@ class VGM {
   bool ready();  // VGM の再生準備
   void vgmProcess();
   void vgmProcessMain();
+
+  void resetKeyInfo();
 
 #ifdef USE_XGM
   u8_t XGMVersion;  // XGM バージョン 1 or 2
@@ -152,6 +207,82 @@ class VGM {
   u32_t _pcmpos = 0;
   s64_t micros64();
   String _formatChipName(si5351Freq_t freq, t_chip chip);
+
+  u8_t _dat0;
+
+  u8_t _ym2203_SSG_reg[2][16] = {0};
+  u8_t _ym2203_FM_reg[2][7] = {0};
+  u8_t _ym2203_FM_prescaler = 4;   // 仕様と異なる
+  u8_t _ym2203_SSG_prescaler = 2;  // 仕様と異なる
+  u8_t _ym2413_reg[0x38] = {0};
+  u8_t _ymf262_reg[2][256] = {0};
+
+  //
+  // YM2203 SSG周波数計算
+  double _getPSGFreq(byte chip, byte ch) {
+    int coarse = _ym2203_SSG_reg[chip][ch * 2 + 1] & 0x0f;
+    int fine = _ym2203_SSG_reg[chip][ch * 2 + 0];
+    int TP = (coarse << 8) | fine;
+    if (TP == 0) return 0;
+    return (double)freq[0] * _ym2203_SSG_prescaler / (64.0 * TP);
+  }
+
+  // YM2203 FM周波数計算
+  double _getFMFreq(byte chip, int channel) {
+    // F-number
+    uint16_t f_number_high = (_ym2203_FM_reg[chip][4 + channel] & 0x07) << 8;
+    uint8_t f_number_low = _ym2203_FM_reg[chip][channel];
+    uint16_t f_number = f_number_high | f_number_low;
+
+    // Blockの計算
+    uint8_t block = (_ym2203_FM_reg[chip][4 + channel] & 0x38) >> 3;
+
+    // F-Numberが0の場合は周波数を0と見なす
+    if (f_number == 0) {
+      return 0.0;
+    }
+
+    // 周波数計算の式: f_note = F-Number * φM / (144 * 2^(21-Block))
+    return (double)f_number * freq[0] * _ym2203_FM_prescaler / (144.0 * pow(2.0, 21.0 - block));
+  }
+
+  // YM2413の周波数計算
+  double _getYM2413Freq(byte ch) {
+    constexpr double F_OSC = 3579545 / 72.0;
+
+    // F-Number 下位8bit
+    uint8_t fnum_l = _ym2413_reg[0x10 + ch];
+    // F-Number 上位1bit + BLOCK + KEYON
+    uint8_t blk_ky = _ym2413_reg[0x20 + ch];
+
+    // 9bitのF-Number
+    int F = fnum_l | ((blk_ky & 0x01) << 8);
+    // BLOCK (オクターブ)
+    int block = (blk_ky >> 1) & 0x07;
+    // KEY ONフラグ
+    bool keyon = (blk_ky & 0x10) != 0;
+    if (keyon == 0) return 0.0;
+
+    // 音色番号
+    uint8_t inst = (_ym2413_reg[0x30 + ch] >> 4) & 0x0F;
+
+    return (double)F * (1 << (block - 1)) * F_OSC / (1 << 18);
+  }
+
+  // YMF262周波数
+  double _getYMF262Freq(int array, int ch) {
+    int kon = (_ymf262_reg[array][0xB0 + ch] >> 5) & 0x01;
+    if (!kon) return 0.0;
+
+    int fnum = (_ymf262_reg[array][0xA0 + ch] & 0xFF) | ((_ymf262_reg[array][0xB0 + ch] & 0x03) << 8);
+    int block = (_ymf262_reg[array][0xB0 + ch] >> 2) & 0x07;
+    if (fnum == 0) return 0.0;
+
+    double fs = freq[1] / 288.0;
+    // f = (fnum * fs) / 2^19 * 2^block
+    double f = (fnum * fs) / (1 << 19);
+    return f * (1 << block);
+  }
 
 #ifdef USE_XGM
   u32_t _xgmSamplePos[XGM1_MAX_PCM_CH];
