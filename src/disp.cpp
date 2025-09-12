@@ -263,17 +263,32 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
     }
 
     int16_t rc = png.open(path.c_str(), myOpen, myClose, myRead, mySeek, pngDraw);
+
     if (rc == PNG_SUCCESS) {
+      if (png.getWidth() > MAX_PNG_WIDTH) {
+        frameBuffer.setFont(&fonts::Font2);
+        frameBuffer.setCursor(0, 77);
+        frameBuffer.printf("PNG width is too large.\nMax width is %d px\nFound %d px\n%s\n", MAX_PNG_WIDTH,
+                           png.getWidth(), path.c_str());
+        sprPng.deleteSprite();
+        lastPNGPath = "";
+        return false;
+      }
+
       sprPng.setPsram(true);
       sprPng.createSprite(png.getWidth(), png.getHeight());
       rc = png.decode(NULL, 0);
 
       // リサイズ
       float w, h;
-      // 640x400 の場合比率保持
-      if (sprPng.width() == 640 && sprPng.height() == 400) {
+
+      if (sprPng.width() == 640 && sprPng.height() == 400) {  // 640x400 の場合比率保持
         w = (float)(LCD_W + 1) / png.getWidth();
         h = 0.2646;
+        sprPngResized.fillSprite(TFT_BLACK);
+      } else if (sprPng.width() == 864 && sprPng.height() == 224) {  // 864x224 の場合比率保持
+        w = (float)(LCD_W + 1) / png.getWidth();
+        h = 0.1968;
         sprPngResized.fillSprite(TFT_BLACK);
       } else if (sprPng.width() >= sprPng.height()) {
         // 横長
@@ -297,7 +312,7 @@ bool openPNG(String dirName, String fileName, bool AA = false, bool toSprite = t
     } else {
       frameBuffer.setFont(&fonts::Font2);
       frameBuffer.setCursor(0, 77);
-      frameBuffer.printf("PNG file error:\n%s", path);
+      frameBuffer.printf("PNG file error:\n%s", path.c_str());
       sprPng.deleteSprite();
       lastPNGPath = "";
       return false;
@@ -394,13 +409,11 @@ void Disp::redraw() {  // プレーヤー描画
     render.printf("%02d/%02d", dispData.no, dispData.maxFiles);
   }
 
-  // if (ndConfig.get(CFG_UPDATE) == UPDATE_YES) {
   render.setAlignment(Align::TopCenter);
   render.setFontSize(14);
   render.setFontColor(C_LIGHTGRAY, C_HEADER);
   render.setCursor(LCD_W / 2, 4);
   render.printf("%d:%02d", (uint8_t)(dispData.time / 60), (uint8_t)(dispData.time % 60));
-  //}
 
   render.setFontSize(13);
   render.setFontColor(C_ORANGE, C_HEADER);

@@ -689,20 +689,13 @@ void VGM::vgmProcessMain() {
 
       switch (reg) {
         case 0x00 ... 0x05: {
-          switch (reg) {
-            case 0x01:
-            case 0x03:
-            case 0x05: {
-              int ch = (reg - 1) / 2;
-              if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
-                double psgFreq = _getPSGFreq(0, ch);
-                NoteInfo ni = freqToNote(psgFreq);
-                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
-                  this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
-                  xSemaphoreGive(keyInfoMutex);
-                }
-              }
-              break;
+          int ch = reg / 2;
+          if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
+            double psgFreq = _getYM2203SSGFreq(0, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
             }
           }
           break;
@@ -710,7 +703,7 @@ void VGM::vgmProcessMain() {
         case 0x08 ... 0x0a: {
           int ch = reg - 0x08;
           if ((dat & 0x0F) != 0) {  // 音が出てるとき
-            double psgFreq = _getPSGFreq(0, ch);
+            double psgFreq = _getYM2203SSGFreq(0, ch);
             NoteInfo ni = freqToNote(psgFreq);
             if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
               this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
@@ -808,20 +801,14 @@ void VGM::vgmProcessMain() {
       switch (reg) {
         case 0x00 ... 0x05: {  // SSG音程
           _ym2203_SSG_reg[0][reg] = dat;
-          switch (reg) {
-            case 0x01:
-            case 0x03:
-            case 0x05: {
-              int ch = (reg - 1) / 2;
-              if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
-                double psgFreq = _getPSGFreq(0, ch);
-                NoteInfo ni = freqToNote(psgFreq);
-                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
-                  this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
-                  xSemaphoreGive(keyInfoMutex);
-                }
-              }
-              break;
+          int ch = reg / 2;
+
+          if (_ym2203_SSG_reg[0][0x08 + ch] != 0) {  // 音が出てるとき
+            double psgFreq = _getYM2203SSGFreq(0, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
             }
           }
           break;
@@ -829,8 +816,8 @@ void VGM::vgmProcessMain() {
         case 0x08 ... 0x0a: {  // SSG音量
           _ym2203_SSG_reg[0][reg] = dat;
           int ch = reg - 0x08;
-          if ((dat & 0x0F) != 0) {  // 音が出てるとき
-            double psgFreq = _getPSGFreq(0, ch);
+          if ((dat & 0x0F) != 0 || ((dat & 0x10) != 0)) {  // 音量セットまたはエンベロープ
+            double psgFreq = _getYM2203SSGFreq(0, ch);
             NoteInfo ni = freqToNote(psgFreq);
             if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
               this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
@@ -876,20 +863,14 @@ void VGM::vgmProcessMain() {
       switch (reg) {
         case 0x00 ... 0x05: {  // SSG音程
           _ym2203_SSG_reg[1][reg] = dat;
-          switch (reg) {
-            case 0x01:
-            case 0x03:
-            case 0x05: {
-              int ch = (reg - 1) / 2;
-              if (_ym2203_SSG_reg[1][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
-                double psgFreq = _getPSGFreq(1, ch);
-                NoteInfo ni = freqToNote(psgFreq);
-                if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
-                  this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
-                  xSemaphoreGive(keyInfoMutex);
-                }
-              }
-              break;
+          int ch = (reg - 1) / 2;
+
+          if (_ym2203_SSG_reg[1][0x08 + ch] != 0) {  // 音が出てるとき
+            double psgFreq = _getYM2203SSGFreq(1, ch);
+            NoteInfo ni = freqToNote(psgFreq);
+            if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
+              this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
+              xSemaphoreGive(keyInfoMutex);
             }
           }
           break;
@@ -897,8 +878,8 @@ void VGM::vgmProcessMain() {
         case 0x08 ... 0x0a: {  // SSG音量
           _ym2203_SSG_reg[1][reg] = dat;
           int ch = reg - 0x08;
-          if ((dat & 0x0F) != 0) {  // 音が出てるとき
-            double psgFreq = _getPSGFreq(1, ch);
+          if ((dat & 0x0F) != 0 || ((dat & 0x10) != 0)) {  // 音量セットまたはエンベロープ
+            double psgFreq = _getYM2203SSGFreq(1, ch);
             NoteInfo ni = freqToNote(psgFreq);
             if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
               this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;

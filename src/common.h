@@ -62,8 +62,8 @@
 #define SD_CLK 5
 #define SD_MISO 4
 
-#define MAX_PNG_WIDTH 640
-#define MAX_FILE_SIZE 7000000  // 6613100
+#define MAX_PNG_WIDTH 864
+#define MAX_FILE_SIZE 6613100  // 6613100
 
 // I2C
 #define I2C_SDA 16

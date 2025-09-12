@@ -219,11 +219,24 @@ class VGM {
 
   //
   // YM2203 SSG周波数計算
-  double _getPSGFreq(byte chip, byte ch) {
-    int coarse = _ym2203_SSG_reg[chip][ch * 2 + 1] & 0x0f;
+  double _getYM2203SSGFreq(byte chip, byte ch) {
+    // トーン/ノイズ有効フラグ
+    bool tone_enable = ((_ym2203_SSG_reg[chip][0x07] >> ch) & 0x01) == 0;
+    bool noise_enable = ((_ym2203_SSG_reg[chip][0x07] >> (ch + 3)) & 0x01) == 0;
+
+    // 音量レジスタ
+    uint8_t volreg = _ym2203_SSG_reg[chip][0x08 + ch];
+    bool vol_active = ((volreg & 0x0F) != 0) || ((volreg & 0x10) != 0);  // bit4=エンベロープ
+
+    bool keyon = (tone_enable || noise_enable) && vol_active;
+    if (!keyon) return 0.0;
+
+    // 周波数計算
+    int coarse = _ym2203_SSG_reg[chip][ch * 2 + 1] & 0x0F;
     int fine = _ym2203_SSG_reg[chip][ch * 2 + 0];
     int TP = (coarse << 8) | fine;
-    if (TP == 0) return 0;
+    if (TP == 0) return 0.0;
+
     return (double)freq[0] * _ym2203_SSG_prescaler / (64.0 * TP);
   }
 
@@ -248,40 +261,35 @@ class VGM {
 
   // YM2413の周波数計算
   double _getYM2413Freq(byte ch) {
+    // キーオンチェック
+    bool keyon = (_ym2413_reg[0x20 + ch] >> 4) & 0x01;
+    if (!keyon) return 0.0;
+
+    int fnum = _ym2413_reg[0x10 + ch] | ((_ym2413_reg[0x20 + ch] & 0x01) << 8);
+    int block = (_ym2413_reg[0x20 + ch] >> 1) & 0x07;
+
     constexpr double F_OSC = 3579545 / 72.0;
-
-    // F-Number 下位8bit
-    uint8_t fnum_l = _ym2413_reg[0x10 + ch];
-    // F-Number 上位1bit + BLOCK + KEYON
-    uint8_t blk_ky = _ym2413_reg[0x20 + ch];
-
-    // 9bitのF-Number
-    int F = fnum_l | ((blk_ky & 0x01) << 8);
-    // BLOCK (オクターブ)
-    int block = (blk_ky >> 1) & 0x07;
-    // KEY ONフラグ
-    bool keyon = (blk_ky & 0x10) != 0;
-    if (keyon == 0) return 0.0;
-
-    // 音色番号
-    uint8_t inst = (_ym2413_reg[0x30 + ch] >> 4) & 0x0F;
-
-    return (double)F * (1 << (block - 1)) * F_OSC / (1 << 18);
+    return (double)fnum * (1 << block) * F_OSC / (1 << 18);
   }
 
   // YMF262周波数
   double _getYMF262Freq(int array, int ch) {
-    int kon = (_ymf262_reg[array][0xB0 + ch] >> 5) & 0x01;
-    if (!kon) return 0.0;
+    // キーオンチェック
+    bool keyon = (_ymf262_reg[array][0xB0 + ch] >> 5) & 0x01;
+    if (!keyon) return 0.0;
 
     int fnum = (_ymf262_reg[array][0xA0 + ch] & 0xFF) | ((_ymf262_reg[array][0xB0 + ch] & 0x03) << 8);
     int block = (_ymf262_reg[array][0xB0 + ch] >> 2) & 0x07;
     if (fnum == 0) return 0.0;
 
-    double fs = freq[1] / 288.0;
+    // OPL2モードか
+    bool opl2_mode = ((_ymf262_reg[1][0x05] & 0x01) == 0);
+
+    double fs = (freq[1] / (opl2_mode ? 4 : 1)) / 288.0;
+
     // f = (fnum * fs) / 2^19 * 2^block
     double f = (fnum * fs) / (1 << 19);
-    return f * (1 << block);
+    return (double)f * (1 << block);
   }
 
 #ifdef USE_XGM
