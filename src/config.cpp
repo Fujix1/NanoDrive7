@@ -116,11 +116,11 @@ void NDConfig::loadCfg() {
   file.close();
 
   // 現在の動作モード
-  if (items.size() > CFG_MODE) {
+  /*if (items.size() > CFG_MODE) {
     currentMode = (tMode)items[CFG_MODE].index;
   } else {
     currentMode = MODE_PLAYER;
-  }
+  }*/
 }
 
 // 最後に開いたフォルダ番号の照合

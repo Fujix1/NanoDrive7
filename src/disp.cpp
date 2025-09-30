@@ -630,10 +630,11 @@ void CFGWindow::inputHandler(event event) {
         disp.currentView = ViewMode::Visual;
 
         // モードが違えば再起動
-        if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
+        /*if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
           ESP.restart();
           return;
         }
+        */
 
         // disp.currentView = ViewMode::Player;
         // disp.currentView = ViewMode::Visual;
