@@ -1,21 +1,31 @@
-# NanoDrive 7 WIP Repository
+# NanoDrive 7 VGM Player
 
-This is a repository for NanoDrive 7 VGM player with YM2203 x 2 + YMF262 OPL3 + YM2413, which plays back VGM format files. It supports YM2203, AY-3-8910, OPL, OPL2, OPL3, YM2413 and MSX audio (FM only).
+NanoDrive 7 is a VGM player with YM2203 x 2 + YMF262 OPL3 + YM2413, which plays back VGM format files. It supports YM2203, AY-3-8910, OPL, OPL2, OPL3, YM2413 and MSX audio (FM only).
 
-Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレーヤーです。開発中です。
+Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレーヤーです。
 
 <br>
 <br>
-<br>
 
-## Assembly Manual
+
+## マニュアル / Manual (Japanese and English)
 [ND7_rev1.pdf](https://github.com/user-attachments/files/22449756/ND7_rev1.pdf)
-
-
-
-## Schematic
+<br>
+<br>
+<br>
+## 回路図 / Schematic
 [schematic.pdf](https://github.com/user-attachments/files/22195744/schematic.pdf)
+<br>
+<br>
+<br>
+## ファームウェアのアップデート方法 / How to update the firmware.
 
+1) [Visual Studio Code](https://code.visualstudio.com/) をインストールし、拡張機能 [Platform I/O](https://platformio.org/)を導入します。これでコンパイル環境が完成します。
+2) このGitをクローンするかダウンロードして、VSCode で開きます。初回、必要なファイル類は自動でダウンロードされるので数分間待ちます。
+3) NanoDrive7 本体を USB で接続します。VSCode の左側の一番下の欄に「→」ボタンがあるのでクリックするとコンパイルと書き換え始まります。または CTRL + ALT + U でもOKです。
+<br>
+<br>
+<br>
 ## Thanks to
 
 - Hiromasha for XGM parsing technichs at
