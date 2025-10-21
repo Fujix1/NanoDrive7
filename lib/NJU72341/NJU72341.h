@@ -42,10 +42,10 @@ class NJU72341 {
 
  private:
   bool _isMuted = false;
-  u8_t _currentVolume[4] = {96, 96, 96, 96};  // 各チャンネルの音量
-  u8_t _attenuation = 0;                      // 音量調整値
-  u32_t _fadeoutStarted;                      // フェードアウト開始時間
-  bool _isFadeoutEnabled;                     // フェードアウトするか
+  u8_t _currentVolume[4] = {100, 100, 100, 100};  // 各チャンネルの音量
+  u8_t _attenuation = 0;                          // 音量調整値
+  u32_t _fadeoutStarted;                          // フェードアウト開始時間
+  bool _isFadeoutEnabled;                         // フェードアウトするか
   u16_t _fadeOutDuration;
   u8_t _slaveAddress;
   bool _isNJU72342;

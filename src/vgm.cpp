@@ -916,14 +916,14 @@ void VGM::vgmProcessMain() {
               xSemaphoreGive(keyInfoMutex);
             }
 
-            // double ym2203FMFreq = _getFMFreq(1, channel);
-            // NoteInfo ni = freqToNote(ym2203FMFreq);
-            // Serial.printf("FM1 ch %d: KEY OFF %s%d\n", channel, String(NOTE_NAMES[ni.note]), ni.octave);
-            /*Serial.printf("YM2203 FM1 - ch0: O%d-%d, ch1: O%d-%d, ch2: O%d-%d\n", keyInfo[YM2203_FM1][0].octave,
-                          keyInfo[YM2203_FM1][0].note, keyInfo[YM2203_FM1][1].octave, keyInfo[YM2203_FM1][1].note,
-                          keyInfo[YM2203_FM1][2].octave, keyInfo[YM2203_FM1][2].note);
-          */}
-            break;
+          // double ym2203FMFreq = _getFMFreq(1, channel);
+          // NoteInfo ni = freqToNote(ym2203FMFreq);
+          // Serial.printf("FM1 ch %d: KEY OFF %s%d\n", channel, String(NOTE_NAMES[ni.note]), ni.octave);
+          /*Serial.printf("YM2203 FM1 - ch0: O%d-%d, ch1: O%d-%d, ch2: O%d-%d\n", keyInfo[YM2203_FM1][0].octave,
+                        keyInfo[YM2203_FM1][0].note, keyInfo[YM2203_FM1][1].octave, keyInfo[YM2203_FM1][1].note,
+                        keyInfo[YM2203_FM1][2].octave, keyInfo[YM2203_FM1][2].note);
+        */ }
+          break;
         }
       }
 #endif
@@ -963,7 +963,6 @@ void VGM::vgmProcessMain() {
           this->keyInfo[YMF262][channel] = ni;
           xSemaphoreGive(keyInfoMutex);
         }
-        Serial.printf("YMF262:A0:ch %d O%d %d\n", channel, ni.octave, ni.note);
       }
       break;
     case 0x5F:  // YMF262 Reg Array 1
@@ -980,7 +979,6 @@ void VGM::vgmProcessMain() {
           this->keyInfo[YMF262][channel] = ni;
           xSemaphoreGive(keyInfoMutex);
         }
-        Serial.printf("YMF262:A1:ch %d O%d %d\n", channel, ni.octave, ni.note);
       }
       break;
 #endif
