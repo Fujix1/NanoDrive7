@@ -174,11 +174,10 @@ void Label::setEnabled(bool state) { _enabled = state; }
 
 //---------------------------------------------------------------------------
 // PNG draw for PNGDec lib
-int pngDraw(PNGDRAW* pDraw) {
+void pngDraw(PNGDRAW* pDraw) {
   uint16_t lineBuffer[MAX_PNG_WIDTH];  // Line buffer for rendering
   png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xffffffff);
   sprPng.pushImage(0, pDraw->y, pDraw->iWidth, 1, lineBuffer);
-  return 1;
 }
 
 //---------------------------------------------------------------------------
