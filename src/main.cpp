@@ -1,5 +1,5 @@
 /**
- * Nano Drive 6
+ * Nano Drive Firmware
  * 2024, 2025 (C) Fujix
  * e2j.net
  *
