@@ -241,7 +241,6 @@ void SI5351_cls::enableOutputs(bool enabled) { write8(SI5351_REGISTER_3_OUTPUT_E
 
 // new frequency
 void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
-  
   switch (outputCh) {
     case 0:
       if (this->currentFreq0 == newFreq) return;
@@ -251,6 +250,7 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
       break;
   }
 
+  Serial.printf("SetFreq: ch %d, %d Hz\n", outputCh, newFreq);
   si5351PLL_t targetPLL;
 
   if (outputCh == 0) {
@@ -260,6 +260,10 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
   }
 
   switch (newFreq) {
+    case SI5351_1022:  // 1.022727 MHz
+      setupPLL(targetPLL, 27, 61363, 62500);
+      setupMultisynth(0, targetPLL, 684, 0, 1);
+      break;
     case SI5351_1250:  // 1.250MHz
       setupPLLInt(targetPLL, 31);
       setupMultisynth(outputCh, targetPLL, 620, 0, 1);
@@ -279,6 +283,10 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
     case SI5351_2000:              // 2MHz
       setupPLLInt(targetPLL, 32);  // 25MHz * 32 = 800
       setupMultisynth(outputCh, targetPLL, 400, 0, 1);
+      break;
+    case SI5351_2045:  // 2.045454 MHz
+      setupPLL(targetPLL, 28, 36361, 250000);
+      setupMultisynth(0, targetPLL, 344, 0, 1);
       break;
     case SI5351_2500:              // 2.5MHz
       setupPLLInt(targetPLL, 30);  // 25MHz * 30 = 750

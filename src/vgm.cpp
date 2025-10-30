@@ -177,14 +177,27 @@ bool VGM::ready() {
 
   u32_t ay8910_clock = (version >= 0x151 && dataOffset >= 0x78) ? ndFile.get_ui32_at(0x74) : 0;
   if (ay8910_clock) {
-    if (clockSlot[CHIP_AY8910] != CLK_NONE) {
+    if (ay8910_clock & 0x40000000) {  // Dual AY-3-8910
+      Serial.printf("Dual AY8910: clock %x", ay8910_clock);
       si5351Freq_t tfreq = normalizeFreq(ay8910_clock, CHIP_AY8910);
-      freq[clockSlot[CHIP_AY8910]] = tfreq;
-      chipNames.push_back(_formatChipName(tfreq, CHIP_AY8910));
-    } else if (clockSlot[CHIP_YM2203_0] != CLK_NONE) {
-      si5351Freq_t tfreq = normalizeFreq(ay8910_clock, CHIP_AY8910);
-      freq[clockSlot[CHIP_YM2203_0]] = tfreq;
-      chipNames.push_back(_formatChipName(tfreq, CHIP_YM2203_0));
+      if (CHIP0 == CHIP_YM2203_0) {
+        freq[CHIP0_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
+        chipNames.push_back(_formatChipName(tfreq, CHIP_YM2203_0));
+      }
+      if (CHIP1 == CHIP_YM2203_1) {
+        freq[CHIP1_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
+        chipNames.push_back(_formatChipName(tfreq, CHIP_AY8910));
+      }
+    } else {
+      if (clockSlot[CHIP_AY8910] != CLK_NONE) {
+        si5351Freq_t tfreq = normalizeFreq(ay8910_clock, CHIP_AY8910);
+        freq[clockSlot[CHIP_AY8910]] = tfreq;
+        chipNames.push_back(_formatChipName(tfreq, CHIP_AY8910));
+      } else if (clockSlot[CHIP_YM2203_0] != CLK_NONE) {
+        si5351Freq_t tfreq = normalizeFreq(ay8910_clock, CHIP_AY8910);
+        freq[clockSlot[CHIP_YM2203_0]] = tfreq;
+        chipNames.push_back(_formatChipName(tfreq, CHIP_YM2203_0));
+      }
     }
   }
 
@@ -396,6 +409,12 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
           break;
         case 2000000:
           return SI5351_4000;
+          break;
+        case 0x400f9b07:  // dual 1.022727MHz Apple II
+          return SI5351_2045;
+          break;
+        case 0x401b4f4c:  // dual 1.789772MHz
+          return SI5351_3579;
           break;
         default:
           return SI5351_4000;
@@ -677,24 +696,40 @@ void VGM::vgmProcessMain() {
   u8_t reg;
   u8_t dat;
   u8_t command = ndFile.get_ui8();
+  u8_t psg_chip;  // デュアル PSG 用
 
   switch (command) {
 #ifdef USE_AY8910
+    case 0x31:  // AY8910 Stereo mask (not supported)
+      ndFile.get_ui8();
+      break;
     case 0xA0:  // AY8910, YM2203 PSG, YM2149, YMZ294D
       reg = ndFile.get_ui8();
       dat = ndFile.get_ui8();
-      FM.setRegister(reg, dat, 0);
 
-      _ym2203_SSG_reg[0][reg] = dat;
+      // dual chip support
+      psg_chip = 0;
+      if (reg & 0x80) {
+        psg_chip = 1;
+        reg = reg & 0x7f;
+      }
+
+      FM.setRegister(reg, dat, psg_chip);
+
+      _ym2203_SSG_reg[psg_chip][reg] = dat;
 
       switch (reg) {
         case 0x00 ... 0x05: {
           int ch = reg / 2;
-          if (_ym2203_SSG_reg[0][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
+          if (_ym2203_SSG_reg[psg_chip][ch + 0x08] != 0) {  // 音が出てるときだけキー情報を登録
             double psgFreq = _getYM2203SSGFreq(0, ch);
             NoteInfo ni = freqToNote(psgFreq);
             if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
-              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              if (psg_chip == 0) {
+                this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              } else {
+                this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
+              }
               xSemaphoreGive(keyInfoMutex);
             }
           }
@@ -703,10 +738,14 @@ void VGM::vgmProcessMain() {
         case 0x08 ... 0x0a: {
           int ch = reg - 0x08;
           if ((dat & 0x0F) != 0) {  // 音が出てるとき
-            double psgFreq = _getYM2203SSGFreq(0, ch);
+            double psgFreq = _getYM2203SSGFreq(psg_chip, ch);
             NoteInfo ni = freqToNote(psgFreq);
             if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {  // セマフォ待ち
-              this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              if (psg_chip == 0) {
+                this->keyInfo[YM2203_SSG0][ch] = (struct NoteInfo)ni;
+              } else {
+                this->keyInfo[YM2203_SSG1][ch] = (struct NoteInfo)ni;
+              }
               xSemaphoreGive(keyInfoMutex);
             }
           }
