@@ -186,7 +186,7 @@ bool VGM::ready() {
       }
       if (CHIP1 == CHIP_YM2203_1) {
         freq[CHIP1_CLOCK] = normalizeFreq(ay8910_clock, CHIP_AY8910);
-        chipNames.push_back(_formatChipName(tfreq, CHIP_AY8910));
+        chipNames.push_back(_formatChipName(tfreq, CHIP_YM2203_1));
       }
     } else {
       if (clockSlot[CHIP_AY8910] != CLK_NONE) {

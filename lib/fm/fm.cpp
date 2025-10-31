@@ -378,10 +378,10 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
   }
   // Address
   WR_LOW;
-  ets_delay_us(2);
+  ets_delay_us(3);
   WR_HIGH;
 
-  ets_delay_us(4);
+  ets_delay_us(5);
   // 32 clocks after writing address and data
   // 14.318180 MHz: 69.84 ns / cycle  x 32 = 2,234.88 ns = 2.235 us
   // 8.000000 MHz: 125 ns / cycle x 32 = 4,000 ns = 4 us
@@ -390,7 +390,7 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
   A0_HIGH;
   dedic_gpio_bundle_write(dataBus, 0xff, data);
   WR_LOW;
-  ets_delay_us(2);
+  ets_delay_us(3);
   WR_HIGH;
 
   switch (chipno) {
@@ -407,7 +407,7 @@ void FMChip::setRegisterOPL3(byte port, byte addr, byte data, int chipno) {
       CS3_HIGH;
       break;
   }
-  ets_delay_us(5);
+  ets_delay_us(7);
 }
 
 FMChip FM;
