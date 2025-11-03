@@ -410,6 +410,9 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
         case 2000000:
           return SI5351_4000;
           break;
+        case 0x4016e360:  // dual 1.5MHz
+          return SI5351_3000;
+          break;
         case 0x400f9b07:  // dual 1.022727MHz Apple II
           return SI5351_2045;
           break;
