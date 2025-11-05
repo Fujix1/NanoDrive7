@@ -445,7 +445,8 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
     case CHIP_YM2203_0:
     case CHIP_YM2203_1: {
       switch (freq) {
-        case 1250000:  // 1.25MHz
+        case 1250000:     // 1.25MHz
+        case 0x041312d0:  // デュアル
           return SI5351_1250;
           break;
         case 1500000:     // 1.5MHz
@@ -454,6 +455,7 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
           return SI5351_1500;
           break;
         case 3000000:  // 3MHz
+        case 0x042dc6c0:
           return SI5351_3000;
           break;
         case 3072000:  // 3.072MHz
