@@ -20,6 +20,11 @@ Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレ�
 <br>
 ## ファームウェアのアップデート方法 / How to update the firmware.
 
+[(https://nanodrive.netlify.app/](https://nanodrive.netlify.app/) よりブラウザ経由で更新できます。USB接続してボタンをクリックし、デバイスを選択すると自動で書き換えが行われます。
+h1romas4 さん制作です。
+
+自分でコンパイルする場合は以下の手順です：
+
 1) [Visual Studio Code](https://code.visualstudio.com/) をインストールし、拡張機能 [Platform I/O](https://platformio.org/)を導入します。これでコンパイル環境が完成します。
 2) このGitをクローンするかダウンロードして、VSCode で開きます。初回、必要なファイル類は自動でダウンロードされるので数分間待ちます。
 3) NanoDrive7 本体を USB で接続します。VSCode の左側の一番下の欄に「→」ボタンがあるのでクリックするとコンパイルと書き換え始まります。または CTRL + ALT + U でもOKです。
