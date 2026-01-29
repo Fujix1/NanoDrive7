@@ -1,5 +1,10 @@
 #include "file.h"
 
+#include <zlib.h>
+#include "inflate.h"
+
+#include <cstring>
+
 static SPIClass SPI_SD;
 std::vector<String> dirs;                // ルートのディレクトリ一覧
 std::vector<String> pngs;                // ディレクトリごとのpng
@@ -17,6 +22,8 @@ bool NDFile::init() {
   _att = 0;
   _attFM = 0;
   _attSSG = 0;
+
+  isVGZ = false;
 
   // セマフォ作成
   spFileOpen = xSemaphoreCreateBinary();
@@ -60,14 +67,14 @@ bool NDFile::init() {
 
   // メモリ確保
   psramInit();  // ALWAYS CALL THIS BEFORE USING THE PSRAM
-  data = (u8_t *)ps_calloc(MAX_FILE_SIZE, sizeof(u8_t));
+  data = (u8_t*)ps_calloc(MAX_FILE_SIZE, sizeof(u8_t));
 
   return true;
 }
 
 uint16_t NDFile::getNumFilesinCurrentDir() { return files[currentDir].size(); }
 
-void NDFile::listDir(const char *dirname) {
+void NDFile::listDir(const char* dirname) {
   File root = SD.open(dirname);
   if (!root) {
     lcd.println("Error: SD card open failed.");
@@ -98,14 +105,9 @@ void NDFile::listDir(const char *dirname) {
 
           String baseFile = filename.substring(filename.lastIndexOf("/") + 1);
           String ext = filename.substring(filename.length() - 4);
-          if (ext.equalsIgnoreCase(".vgm")) {
+          if (ext.equalsIgnoreCase(".vgm") || ext.equalsIgnoreCase(".vgz")) {
             validFileCount++;
           }
-#ifdef USE_XGM
-          else if (ext.equalsIgnoreCase(".xgm")) {
-            validFileCount++;
-          }
-#endif
         }
         dir.close();
 
@@ -134,17 +136,10 @@ void NDFile::listDir(const char *dirname) {
       if (filename == "") break;
       if (!isDir) {
         String ext = filename.substring(filename.length() - 4);
-        if (ext.equalsIgnoreCase(".vgm")) {
+        if (ext.equalsIgnoreCase(".vgm") || ext.equalsIgnoreCase(".vgz")) {
           totalSongs++;
           files[i].push_back(filename.substring(dirs[i].length() + 1));
-        }
-#ifdef USE_XGM
-        else if (ext.equalsIgnoreCase(".xgm")) {
-          totalSongs++;
-          files[i].push_back(filename.substring(dirs[i].length() + 1));
-        }
-#endif
-        else if (ext == ".png") {
+        } else if (ext == ".png") {
           pngs[i] = filename.substring(dirs[i].length() + 1);
         }
       }
@@ -159,7 +154,7 @@ void NDFile::listDir(const char *dirname) {
 //----------------------------------------------------------------------
 // ファイル開いてPSRAMに配置
 bool NDFile::readFile(String path) {
-  int n = 0;
+  isVGZ = false;
 
   _vgmFile = SD.open(path.c_str());
   if (!_vgmFile) {
@@ -168,16 +163,195 @@ bool NDFile::readFile(String path) {
     return false;
   }
 
-  if (_vgmFile.size() > MAX_FILE_SIZE) {
-    lcd.printf("ERROR: The file is too large.\nMax file size is %d.\n%s", MAX_FILE_SIZE, path.c_str());
+  uint8_t header[4] = {0};
+  if (_vgmFile.read(header, sizeof(header)) != sizeof(header)) {
+    lcd.printf("ERROR: Invalid file.\n%s", path.c_str());
     _vgmFile.close();
     return false;
   }
 
-  _vgmFile.read(data, _vgmFile.size());
+  bool isVgm = (header[0] == 'V' && header[1] == 'g' && header[2] == 'm' && header[3] == ' ');
+  bool isGz = (header[0] == 0x1F && header[1] == 0x8B);
+
+  if (!isVgm && !isGz) {
+    lcd.printf("ERROR: Invalid file.\n%s", path.c_str());
+    _vgmFile.close();
+    return false;
+  }
+
+  if (isVgm) {
+    if (_vgmFile.size() > MAX_FILE_SIZE) {
+      lcd.printf("ERROR: The file is too large.\nMax file size is %d.\n%s", MAX_FILE_SIZE, path.c_str());
+      _vgmFile.close();
+      return false;
+    }
+
+    _vgmFile.seek(0);
+    _vgmFile.read(data, _vgmFile.size());
+    Serial.printf("File name: %s\n", path.c_str());
+    _vgmFile.close();
+    return true;
+  }
+
+  // gzip(VGZ) decode to PSRAM.
+  _vgmFile.seek(0);
+
+  auto readByte = [&](void) -> int {
+    int c = _vgmFile.read();
+    if (c < 0) return -1;
+    return c & 0xFF;
+  };
+
+  auto skipBytes = [&](size_t count) -> bool {
+    while (count--) {
+      if (readByte() < 0) return false;
+    }
+    return true;
+  };
+
+  // Parse gzip header.
+  int id1 = readByte();
+  int id2 = readByte();
+  int cm = readByte();
+  int flg = readByte();
+  if (id1 != 0x1F || id2 != 0x8B || cm != 8 || flg < 0) {
+    lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+    _vgmFile.close();
+    return false;
+  }
+  // MTIME(4), XFL(1), OS(1)
+  if (!skipBytes(6)) {
+    lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+    _vgmFile.close();
+    return false;
+  }
+
+  if (flg & 0x04) {  // FEXTRA
+    int xlen0 = readByte();
+    int xlen1 = readByte();
+    if (xlen0 < 0 || xlen1 < 0) {
+      lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+      _vgmFile.close();
+      return false;
+    }
+    uint16_t xlen = (uint16_t)xlen0 | ((uint16_t)xlen1 << 8);
+    if (!skipBytes(xlen)) {
+      lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+      _vgmFile.close();
+      return false;
+    }
+  }
+  if (flg & 0x08) {  // FNAME
+    while (true) {
+      int c = readByte();
+      if (c < 0) {
+        lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+        _vgmFile.close();
+        return false;
+      }
+      if (c == 0) break;
+    }
+  }
+  if (flg & 0x10) {  // FCOMMENT
+    while (true) {
+      int c = readByte();
+      if (c < 0) {
+        lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+        _vgmFile.close();
+        return false;
+      }
+      if (c == 0) break;
+    }
+  }
+  if (flg & 0x02) {  // FHCRC
+    if (!skipBytes(2)) {
+      lcd.printf("ERROR: Invalid gzip header.\n%s", path.c_str());
+      _vgmFile.close();
+      return false;
+    }
+  }
+
+  static uint8_t zlib_buf[sizeof(inflate_state) + 32768];
+  z_stream stream;
+  memset(&stream, 0, sizeof(stream));
+  memset(zlib_buf, 0, sizeof(zlib_buf));
+  stream.zalloc = (alloc_func)0;
+  stream.zfree = (free_func)0;
+  stream.opaque = (voidpf)0;
+
+  inflate_state *state = (inflate_state *)zlib_buf;
+  stream.state = (struct internal_state *)state;
+  state->window = &zlib_buf[sizeof(inflate_state)];
+  if (inflateInit2(&stream, -15) != Z_OK) {
+    lcd.printf("ERROR: gzip init failed.\n%s", path.c_str());
+    _vgmFile.close();
+    return false;
+  }
+
+  uint8_t inbuf[1024];
+  size_t out_pos = 0;
+  int status = Z_OK;
+
+  while (true) {
+    if (stream.avail_in == 0) {
+      int r = _vgmFile.read(inbuf, sizeof(inbuf));
+      if (r <= 0) {
+        status = Z_DATA_ERROR;
+        break;
+      }
+      stream.next_in = inbuf;
+      stream.avail_in = (unsigned int)r;
+    }
+
+    if (out_pos >= MAX_FILE_SIZE) {
+      status = Z_BUF_ERROR;
+      break;
+    }
+    stream.next_out = data + out_pos;
+    stream.avail_out = (unsigned int)(MAX_FILE_SIZE - out_pos);
+
+    int ret = inflate(&stream, Z_NO_FLUSH, 0);
+    size_t produced = (MAX_FILE_SIZE - out_pos) - stream.avail_out;
+    out_pos += produced;
+
+    if (ret == Z_STREAM_END) {
+      status = Z_STREAM_END;
+      break;
+    }
+    if (ret == Z_BUF_ERROR && stream.avail_out == 0) {
+      status = Z_BUF_ERROR;
+      break;
+    }
+    if (ret == Z_BUF_ERROR && stream.avail_in == 0) {
+      continue;
+    }
+    if (ret != Z_OK && ret != Z_BUF_ERROR) {
+      status = ret;
+      break;
+    }
+  }
+
+  inflateEnd(&stream);
+
+  if (status != Z_STREAM_END) {
+    if (status == Z_BUF_ERROR) {
+      lcd.printf("ERROR: The file is too large.\nMax file size is %d.\n%s", MAX_FILE_SIZE, path.c_str());
+    } else {
+      lcd.printf("ERROR: gzip decode failed.\n%s", path.c_str());
+    }
+    _vgmFile.close();
+    return false;
+  }
+
+  if (get_ui32_at(0) != 0x206d6756) {
+    lcd.printf("ERROR: File format is not VGM.\n%s", path.c_str());
+    _vgmFile.close();
+    return false;
+  }
+
   Serial.printf("File name: %s\n", path.c_str());
   _vgmFile.close();
-
+  isVGZ = true;
   return true;
 }
 
@@ -236,14 +410,9 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f) {
   if (readFile(st)) {
     // check file type
     String ext = st.substring(st.length() - 4);
-    if (ext.equalsIgnoreCase(".vgm")) {
+    if (ext.equalsIgnoreCase(".vgm") || ext.equalsIgnoreCase(".vgz")) {
       result = vgm.ready();
     }
-#ifdef USE_XGM
-    else if (ext.equalsIgnoreCase(".xgm")) {
-      result = vgm.XGMReady();
-    }
-#endif
   }
 
   nju72341.setVolume_1B(_attFM);
@@ -259,7 +428,7 @@ bool NDFile::fileOpen(uint16_t d, uint16_t f) {
 //----------------------------------------------------------------------
 // 指定されたディレクトリ内の減衰指定 "att*" ファイルを調べて値を返す
 // 戻り値: 0 ~ 24
-void NDFile::getAttValueInDir(const String &dirPath) {
+void NDFile::getAttValueInDir(const String& dirPath) {
   bool isDir;
   _att = 0;
   _attFM = 0;

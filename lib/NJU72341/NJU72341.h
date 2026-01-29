@@ -7,7 +7,7 @@
 
 #include <Arduino.h>
 
-#include "../../src/config.h"
+#include "../../include/config.h"
 
 #define NJU72341_ADDR 0x44  // I2C address
 #define NJU72342_ADDR 0x40  // I2C address

@@ -3,7 +3,7 @@
 #include <Wire.h>
 
 #include "../../src/common.h"
-#include "../../src/config.h"
+#include "config.h"
 
 #define FADEOUT_STEPS 50
 

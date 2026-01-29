@@ -15,21 +15,21 @@ int mod(int i, int j);
 class NDFile {
  public:
   bool init();
-  void listDir(const char *dirname);
+  void listDir(const char* dirname);
   bool readFile(String path);
   bool filePlay(int count);
   bool dirPlay(int count);
   bool play(u16_t d, u16_t f);
   bool fileOpen(u16_t d, u16_t f);
 
-  void getAttValueInDir(const String &dirPath);  // フォルダの音量減衰取得
+  void getAttValueInDir(const String& dirPath);  // フォルダの音量減衰取得
 
   u16_t currentDir;      // 現在のディレクトリ
   u16_t currentFile;     // 現在のファイル
   u16_t totalSongs = 0;  // 合計曲数
   u16_t getNumFilesinCurrentDir();
 
-  u8_t *data;                              // データ本体
+  u8_t* data;                              // データ本体
   u32_t pos;                               // データ位置
   std::vector<String> dirs;                // ルートのディレクトリ一覧
   std::vector<String> pngs;                // ディレクトリごとのpng
@@ -43,6 +43,8 @@ class NDFile {
   u16_t get_ui16_at(u32_t p);
   u32_t get_ui24_at(u32_t p);
   u32_t get_ui32_at(u32_t p);
+
+  boolean isVGZ;
 
  private:
   u8_t _att;     // 現在のフォルダの全体減衰量 db
