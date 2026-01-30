@@ -1,8 +1,8 @@
 # NanoDrive 7 VGM Player
 
-NanoDrive 7 is a VGM player with YM2203 x 2 + YMF262 OPL3 + YM2413, which plays back VGM format files. It supports YM2203, AY-3-8910, OPL, OPL2, OPL3, YM2413 and MSX audio (FM only).
+NanoDrive 7 is a VGM player with YM2203 x 2 + YMF262 OPL3 + YM2413, which plays back VGM and VGZ (gzipped VGM) format files. It supports YM2203, AY-3-8910, OPL, OPL2, OPL3, YM2413 and MSX audio (FM only).
 
-Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレーヤーです。
+Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレーヤーです。v3.2 から gzip 圧縮された VGZ ファイルをサポートします（解凍後のファイルサイズは6MBまで）。
 
 <br>
 <br>
