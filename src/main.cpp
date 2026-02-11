@@ -60,7 +60,7 @@ void setup() {
   lcd.setFont(&fonts::Font2);
   lcd.println("NANO DRIVE 7");
   lcd.println("2024-2026 Fujix@e2j.net");
-  lcd.printf("Firmware: 3.2\n\n");
+  lcd.printf("Firmware: 3.2.1\n\n");
 
   // PSRAM 初期化確認
   if (psramInit()) {
@@ -71,14 +71,8 @@ void setup() {
   }
 
   // ユーザ設定
-  if (ndConfig.init()) {
-    ndConfig.loadCfg();
-    lcd.printf("User settings restored.\n");
-  } else {
-    lcd.printf("ERROR: CONFIG INIT.\n");
-    Serial.printf("ERROR: SPIFFS initialization failed.\n");
-    exit;
-  }
+  ndConfig.init();
+  ndConfig.loadCfg();
 
   // I2C機器初期化
   // NJU72341/NJU72342 初期化
