@@ -20,8 +20,7 @@ Nano Drive 7 は、YM2203 x 2 + YMF262 OPL3 + YM2413 を搭載した VGM プレ�
 <br>
 ## ファームウェアのアップデート方法 / How to update the firmware.
 
-[(https://nanodrive.netlify.app/](https://nanodrive.netlify.app/) よりブラウザ経由で更新できます。USB接続してボタンをクリックし、デバイスを選択すると自動で書き換えが行われます。
-h1romas4 さん制作です。
+[https://nanodrive.netlify.app/](https://nanodrive.netlify.app/) よりブラウザ経由で更新できます。USB接続してボタンをクリックし、デバイスを選択すると自動で書き換えが行われます。h1romas4 さん制作です。
 
 自分でコンパイルする場合は以下の手順です：
 
