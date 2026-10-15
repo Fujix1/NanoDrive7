@@ -372,6 +372,10 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
       setupPLLInt(targetPLL, 28);                      // 25MHz * 27 = 700
       setupMultisynth(outputCh, targetPLL, 50, 0, 1);  // 700 / 50 = 14 MHz
       break;
+    case SI5351_14261:  // 14.260547 MHz, 25 MHz reference
+      setupPLL(targetPLL, 28, 260547, 500000);  // VCO = 713.027350 MHz
+      setupMultisynth(outputCh, targetPLL, 50, 0, 1);
+      break;
     case SI5351_14318:                                 // 14.318180 MHz
       setupPLL(targetPLL, 27, 38352, 78125);           // 25MHz * 27 38352/78125 = 687.272640000
       setupMultisynth(outputCh, targetPLL, 48, 0, 1);  // 687.27264000 / 48 = 14.318180 MHz

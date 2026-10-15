@@ -1,8 +1,8 @@
 #include "vgm.h"
 
 #include <cassert>
-#include <cstring>
 #include <codecvt>
+#include <cstring>
 #include <locale>
 #include <string>
 
@@ -729,6 +729,9 @@ si5351Freq_t VGM::normalizeFreq(u32_t freq, t_chip chip) {
           break;
         case 4000000:
           return SI5351_16000;
+          break;
+        case 14260547:
+          return SI5351_14261;
           break;
         case 0xda7a64:
           return SI5351_14318;

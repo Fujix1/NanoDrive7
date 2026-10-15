@@ -3,6 +3,7 @@ import binascii
 import ctypes
 from pathlib import Path
 import struct
+import re
 import sys
 import unittest
 
@@ -70,7 +71,10 @@ class ProtocolTests(unittest.TestCase):
         data = self.send(2, kind=1)[0][2]
         n = data[1]
         self.assertEqual(data[:2+n], b'\0\x0bNanoDrive 7')
-        self.assertEqual(data[3+n:], b'4.0b')
+        common = (Path(__file__).resolve().parents[2]/'src/common.h').read_text(encoding='utf-8-sig')
+        expected = re.search(r'^#define\s+ND_FIRMWARE_VERSION\s+"([^"]+)"', common, re.M).group(1).encode('utf-8')
+        self.assertEqual(data[2+n],len(expected))
+        self.assertEqual(data[3+n:],expected)
 
     def test_capabilities_and_pagination(self):
         data = self.send(5, b'\0\0', 1)[0][2]
@@ -140,6 +144,15 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(D.metric(4),14318180, 'Native OPL3 must not be multiplied again')
         self.assertEqual(self.clock(0x5f,12000000),b'\0')
         self.assertEqual(D.metric(4),12000000)
+
+    def test_opl3_original_14260547_clock(self):
+        for op in (0x5e, 0x5f):
+            self.assertEqual(self.clock(op,14260547),b'\0')
+            self.assertEqual(D.metric(4),14260547, 'Original OPL3 Hz must be preserved')
+        changes = D.metric(2)
+        self.assertEqual(self.clock(0x5e,14260546),b'\1')
+        self.assertEqual(D.metric(2),changes)
+        self.assertEqual(D.metric(4),14260547)
 
     def test_clock_rejections_leave_hardware_unchanged(self):
         for op,hz,inst in [(0x51,3579540,0),(0x55,0,0),(0x55,1234567,0),(0x55,0x40000000+4000000,0),

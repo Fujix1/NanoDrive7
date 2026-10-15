@@ -102,7 +102,7 @@ si5351Freq_t normalizePhysicalClock(uint8_t slot, uint32_t hz) {
       SI5351_1789, SI5351_2000, SI5351_2045, SI5351_2500, SI5351_2578, SI5351_3000,
       SI5351_3072, SI5351_3332, SI5351_3375, SI5351_3500, SI5351_3579, SI5351_4000, SI5351_4500};
   const si5351Freq_t opl[] = {SI5351_8000, SI5351_9000, SI5351_12000, SI5351_14000,
-      SI5351_14318, SI5351_16000};
+      SI5351_14261, SI5351_14318, SI5351_16000};
   if (slot == 0) {
     for (auto value : opn) if (uint32_t(value) == hz) return value;
   } else {
