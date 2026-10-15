@@ -22,7 +22,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#define ND_FIRMWARE_VERSION "4.0b"
+#define ND_FIRMWARE_VERSION "4.0b1"
 // YM2413 uses a fixed 3.57954 MHz oscillator.
 #ifndef ND_YM2413_CLOCK_HZ
 #define ND_YM2413_CLOCK_HZ 3579540

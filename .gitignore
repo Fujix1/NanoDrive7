@@ -8,3 +8,4 @@ docs
 # VSCode settings
 .vscode/
 
+/tmp/
