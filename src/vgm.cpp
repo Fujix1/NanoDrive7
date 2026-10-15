@@ -1,6 +1,7 @@
 #include "vgm.h"
 
 #include <cassert>
+#include <cstring>
 #include <codecvt>
 #include <locale>
 #include <string>
@@ -59,6 +60,70 @@ void VGM::resetKeyInfo() {
     }
     xSemaphoreGive(keyInfoMutex);
     Serial.printf("Key Info Reset.\n");
+  }
+}
+
+// NDSIF owns chip I/O while in serial mode; the display reads keyInfo under its mutex.
+void VGM::resetSerialState() {
+  memset(_ym2203_SSG_reg, 0, sizeof(_ym2203_SSG_reg));
+  memset(_ym2203_FM_reg, 0, sizeof(_ym2203_FM_reg));
+  memset(_ym2413_reg, 0, sizeof(_ym2413_reg));
+  memset(_ymf262_reg, 0, sizeof(_ymf262_reg));
+  memset(_serialFMKeyOn, 0, sizeof(_serialFMKeyOn));
+  if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {
+    memset(keyInfo, 0, sizeof(keyInfo));
+    xSemaphoreGive(keyInfoMutex);
+  }
+}
+
+void VGM::writeSerialRegister(uint8_t id, uint8_t instance, uint8_t page, uint8_t reg, uint8_t data) {
+  switch (id) {
+    case 0x55:
+    case 0xa5:
+    case 0xa0:
+      if (instance > 1 || page != 0 || (id == 0xa5 && instance != 1) || (id == 0xa0 && reg > 0x0f)) return;
+      FM.setRegister(reg, data, instance);
+      if (reg < 0x10) _ym2203_SSG_reg[instance][reg] = data;
+      if (reg >= 0xa0 && reg <= 0xa6) _ym2203_FM_reg[instance][reg - 0xa0] = data;
+      if (reg == 0x28 && (data & 3) < 3) _serialFMKeyOn[instance][data & 3] = (data & 0xf0) != 0;
+      break;
+    case 0x51:
+      if (instance != 0 || page != 0 || reg >= sizeof(_ym2413_reg)) return;
+      FM.setRegister(reg, data, 3);
+      if (reg < sizeof(_ym2413_reg)) _ym2413_reg[reg] = data;
+      break;
+    case 0x5a:
+    case 0x5b:
+    case 0x5e:
+    case 0x5f:
+      if (instance != 0 || page != (id == 0x5f ? 1 : 0)) return;
+      FM.setRegisterOPL3(page, reg, data, 2);
+      _ymf262_reg[page][reg] = data;
+      break;
+    default:
+      return;
+  }
+}
+
+// Called once per BURST, rather than doing note calculations for every pair.
+void VGM::refreshSerialKeyInfo() {
+  NoteInfo next[DEVICE_COUNT][MAX_CHANNELS] = {};
+  for (int chip = 0; chip < 2; ++chip) {
+    for (int ch = 0; ch < 3; ++ch) {
+      next[chip == 0 ? YM2203_SSG0 : YM2203_SSG1][ch] = freqToNote(_getYM2203SSGFreq(chip, ch));
+      if (_serialFMKeyOn[chip][ch]) {
+        next[chip == 0 ? YM2203_FM0 : YM2203_FM1][ch] = freqToNote(_getFMFreq(chip, ch));
+      }
+    }
+  }
+  for (int ch = 0; ch < 9; ++ch) {
+    next[YM2413][ch] = freqToNote(_getYM2413Freq(ch));
+    next[YMF262][ch] = freqToNote(_getYMF262Freq(0, ch));
+    if (_ymf262_reg[1][0x05] & 1) next[YMF262][ch + 9] = freqToNote(_getYMF262Freq(1, ch));
+  }
+  if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {
+    memcpy(keyInfo, next, sizeof(keyInfo));
+    xSemaphoreGive(keyInfoMutex);
   }
 }
 

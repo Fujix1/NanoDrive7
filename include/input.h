@@ -2,42 +2,33 @@
 #define INPUT_H
 #include <Arduino.h>
 
-#include "SI5351.hpp"
-
 #define INPUT_PIN 1
 #define INPUT_CAPTURE_INTERVAL 60  // ms キャプチャインターバル
 #define INPUT_REPEAT_DELAY 300     // ms リピート開始までの時間
 
 typedef enum { btnNONE, btnRIGHT, btnUP, btnDOWN, btnLEFT, btnSELECT, btnFUNC } Button;
 
-enum class event { None, Right, Up, Down, Left, Open, Close };
+// ND6 の共通イベント。ND6.1 のブラウザ用イベントは含めない。
+enum class event { None, Right, Up, Down, Left, Option, Close, SwitchView };
 
-#define VAL_0 0        // 0 - 50
-#define VAL_1 500      // 530 前後    420 - 510
-#define VAL_2 1250     // 1301 前後  1190 - 1290
-#define VAL_3 1960     // 1980 前後  1860 - 1980
-#define VAL_4 2900     // 2905 前後  2830 - 2910
-#define VAL_NONE 4095  // 4095
-
-extern QueueHandle_t xQueueInput;  // 入力のキュー
-extern TaskHandle_t tskEventLoop;  // イベントループタスク
+#define VAL_0 0
+#define VAL_1 500
+#define VAL_2 1250
+#define VAL_3 1960
+#define VAL_4 2900
+#define VAL_NONE 4095
 
 class Input {
  public:
-  Input();
-  void init();
+  bool init();
   void inputHandler();
   void setEnabled(bool state);
-  Button inputBuffer = btnNONE;
+  bool isEnabled() const;
   Button checkButton();
 
  private:
-  bool _enabled = false;
-  uint32_t _buttonLastTick = 0;  // 最後にボタンが押された時間
-  uint32_t _buttonLastTick2 = 0;
-  uint32_t _buttonRepeatStarted = 0;  // リピート開始時間
-  bool _btnFlag;
-
+  volatile bool _enabled = false;
+  uint32_t _buttonRepeatStarted = 0;
   Button _lastButton = btnNONE;
   Button _readButton();
 };

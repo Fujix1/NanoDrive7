@@ -16,6 +16,11 @@ static SemaphoreHandle_t spFileOpen;  // ファイル開く処理用セマフォ
 //-------------------------------------------------------------------------
 
 bool NDFile::init() {
+  _playbackQueue = xQueueCreate(1, sizeof(PlaybackCommand));
+  if (_playbackQueue == nullptr) {
+    Serial.println("Failed: playback queue init.");
+    return false;
+  }
   currentDir = 0;
   currentFile = 0;
 
@@ -353,6 +358,28 @@ bool NDFile::readFile(String path) {
   _vgmFile.close();
   isVGZ = true;
   return true;
+}
+
+// ND6 と同じく、再生データの変更を再生ループ側へ集約する。
+// リピート中は最新要求 1 件だけを保持し、離鍵時に残った要求を破棄する。
+bool NDFile::requestFilePlay(int count) {
+  const PlaybackCommand command = {PlaybackCommandType::FileRelative, count};
+  return _playbackQueue != nullptr && xQueueOverwrite(_playbackQueue, &command) == pdTRUE;
+}
+
+bool NDFile::requestDirPlay(int count) {
+  const PlaybackCommand command = {PlaybackCommandType::DirRelative, count};
+  return _playbackQueue != nullptr && xQueueOverwrite(_playbackQueue, &command) == pdTRUE;
+}
+
+bool NDFile::processPlaybackQueue() {
+  PlaybackCommand command;
+  if (_playbackQueue == nullptr || xQueueReceive(_playbackQueue, &command, 0) != pdTRUE) return false;
+  return command.type == PlaybackCommandType::FileRelative ? filePlay(command.count) : dirPlay(command.count);
+}
+
+void NDFile::clearPlaybackQueue() {
+  if (_playbackQueue != nullptr) xQueueReset(_playbackQueue);
 }
 
 //----------------------------------------------------------------------

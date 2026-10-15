@@ -17,6 +17,12 @@ class NDFile {
   bool init();
   void listDir(const char* dirname);
   bool readFile(String path);
+  // 入力タスクは要求だけ送信し、読み込みは再生ループ側で行う。
+  bool requestFilePlay(int count);
+  bool requestDirPlay(int count);
+  bool processPlaybackQueue();
+  void clearPlaybackQueue();
+
   bool filePlay(int count);
   bool dirPlay(int count);
   bool play(u16_t d, u16_t f);
@@ -47,6 +53,13 @@ class NDFile {
   boolean isVGZ;
 
  private:
+  enum class PlaybackCommandType { FileRelative, DirRelative };
+  struct PlaybackCommand {
+    PlaybackCommandType type;
+    int count;
+  };
+  QueueHandle_t _playbackQueue = nullptr;
+
   u8_t _att;     // 現在のフォルダの全体減衰量 db
   u8_t _attFM;   // 現在のフォルダの YM2203 FM の減衰量 db
   u8_t _attSSG;  // 現在のフォルダの YM2203 SSG の減衰量 db

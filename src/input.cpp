@@ -1,254 +1,170 @@
 #include "input.h"
 
-#include <Arduino.h>
-
 #include "disp.h"
 #include "file.h"
-#include "serialman.h"
 
-QueueHandle_t xQueueInput = nullptr;
-TaskHandle_t tskEventLoop = nullptr;
+namespace {
+TaskHandle_t adcTaskHandle = nullptr;
+TaskHandle_t eventTaskHandle = nullptr;
+TaskHandle_t inputHandlerTaskHandle = nullptr;
+QueueHandle_t buttonQueue = nullptr;
+QueueHandle_t inputEventQueue = nullptr;
 
-void inputTask(void *param) {
-  while (1) {
-    Button b = input.checkButton();
-    if (b != btnNONE) input.inputBuffer = b;
-    vTaskDelay(INPUT_CAPTURE_INTERVAL);
+void adcTask(void*) {
+  while (true) {
+    if (input.isEnabled()) {
+      const Button button = input.checkButton();
+      if (button != btnNONE) xQueueOverwrite(buttonQueue, &button);
+    }
+    vTaskDelay(pdMS_TO_TICKS(INPUT_CAPTURE_INTERVAL));
   }
 }
 
-void serialCheckerTask_(void *param) {
-  while (1) {
-    int s = Serial.available();
-    if (s > 0) {  // シリアルデータがある場合
-      byte data[s + 1];
-      // byte data = Serial.read();
-      Serial.readBytes(data, s);
-      lcd.setCursor(0, 32);
-      // lcd.printf("%02x", Serial.available());
-      lcd.printf("%02x %d   ", data[0], s);
+// ND6 と同様、現在の画面にイベントを配送する。
+void eventTask(void*) {
+  event ev;
+  while (true) {
+    if (xQueueReceive(inputEventQueue, &ev, portMAX_DELAY) != pdTRUE) continue;
+    if (!input.isEnabled()) continue;
 
-      // Serial.printf("Serial data: %c\n", data);  // debug
-      /*
-      while (Serial.available()) Serial.read();
-      if (data == 'a') {
-        input.inputBuffer = btnRIGHT;
-      } else if (data == 'd') {
-        input.inputBuffer = btnLEFT;
-      } else if (data == 'w') {
-        input.inputBuffer = btnUP;
-      } else if (data == 's') {
-        input.inputBuffer = btnDOWN;
-      }*/
+    switch (disp.currentView) {
+      case ViewMode::Config:
+        cfgWindow.eventHandler(ev);
+        break;
+      case ViewMode::Visual:
+        visualWindow.eventHandler(ev);
+        break;
+      default:
+        disp.eventHandler(ev);
+        break;
     }
+  }
+}
+
+void inputHandlerTask(void*) {
+  while (true) {
+    input.inputHandler();
     vTaskDelay(1);
   }
 }
 
-// イベントループ
-void eventLoop(void *pvPrams) {
-  while (1) {
-    event event;
-    if (xQueueReceive(xQueueInput, &event, 0) == pdTRUE) {
-      // 表示中の画面にイベントを送信
-      switch (disp.currentView) {
-        case ViewMode::Config:
-          cfgWindow.inputHandler(event);
-          break;
-        case ViewMode::Visual:
-          visualWindow.inputHandler(event);
-          break;
-        default:
-          break;
-      }
-    }
-    vTaskDelay(66);
-  }
+void sendEvent(event ev) {
+  if (inputEventQueue != nullptr) xQueueOverwrite(inputEventQueue, &ev);
 }
 
-// イベント送信
-void sendEventToQueue(event ev) {
-  if (uxQueueSpacesAvailable(xQueueInput)) {
-    xQueueSend(xQueueInput, &ev, 0);
-  }
+void releaseInputResources() {
+  if (adcTaskHandle != nullptr) vTaskDelete(adcTaskHandle);
+  if (inputHandlerTaskHandle != nullptr) vTaskDelete(inputHandlerTaskHandle);
+  if (eventTaskHandle != nullptr) vTaskDelete(eventTaskHandle);
+  adcTaskHandle = inputHandlerTaskHandle = eventTaskHandle = nullptr;
+  if (buttonQueue != nullptr) vQueueDelete(buttonQueue);
+  if (inputEventQueue != nullptr) vQueueDelete(inputEventQueue);
+  buttonQueue = inputEventQueue = nullptr;
 }
+}  // namespace
 
-Input::Input() { pinMode(INPUT_PIN, ANALOG); }
+bool Input::init() {
+  if (adcTaskHandle != nullptr) return true;
+  pinMode(INPUT_PIN, ANALOG);
 
-void Input::init() {
-  // ボタン状態をチェックするタスク
-  xTaskCreateUniversal(inputTask, "inputTask", 10000, NULL, 1, NULL, PRO_CPU_NUM);
+  // ボタンの受け渡しもキューにし、読み取りとクリアの競合を避ける。
+  buttonQueue = xQueueCreate(1, sizeof(Button));
+  inputEventQueue = xQueueCreate(1, sizeof(event));
+  if (buttonQueue == nullptr || inputEventQueue == nullptr) {
+    releaseInputResources();
+    return false;
+  }
 
-  // キュー作成
-  xQueueInput = xQueueCreate(2, sizeof(event));
-
-  // イベントループタスク
-  xTaskCreateUniversal(eventLoop, "eventloop", 10000, NULL, 1, &tskEventLoop, PRO_CPU_NUM);
+  if (xTaskCreatePinnedToCore(eventTask, "inputEvent", 8192, nullptr, 1, &eventTaskHandle, PRO_CPU_NUM) != pdPASS ||
+      xTaskCreatePinnedToCore(inputHandlerTask, "inputHandler", 4096, nullptr, 1, &inputHandlerTaskHandle,
+                              PRO_CPU_NUM) != pdPASS ||
+      xTaskCreatePinnedToCore(adcTask, "adcInput", 4096, nullptr, 1, &adcTaskHandle, PRO_CPU_NUM) != pdPASS) {
+    releaseInputResources();
+    return false;
+  }
+  return true;
 }
 
 void Input::inputHandler() {
   if (!_enabled) return;
+  Button button;
+  if (xQueueReceive(buttonQueue, &button, 0) != pdTRUE) return;
 
-  // 入力処理
-  switch (disp.currentView) {
-    case ViewMode::Player: {  // プレイヤーのとき
-      switch (inputBuffer) {
-        case btnUP: {
-          ndFile.dirPlay(1);
-          break;
-        }
-        case btnDOWN: {
-          ndFile.dirPlay(-1);
-          break;
-        }
-        case btnRIGHT: {
-          ndFile.filePlay(-1);
-          break;
-        }
-        case btnLEFT: {
-          ndFile.filePlay(1);
-          break;
-        }
-        case btnSELECT: {
-          disp.currentView = ViewMode::Config;
-          sendEventToQueue(event::Open);  // 設定ウィンドウ表示
-          break;
-        }
-      }
-      break;
+  if (disp.currentView == ViewMode::Config) {
+    switch (button) {
+      case btnUP: sendEvent(event::Up); break;
+      case btnDOWN: sendEvent(event::Down); break;
+      case btnLEFT: sendEvent(event::Left); break;
+      case btnRIGHT: sendEvent(event::Right); break;
+      case btnSELECT: sendEvent(event::Close); break;
+      default: break;
     }
-    case ViewMode::Config: {  // 設定ウィンドウのとき
-
-      switch (inputBuffer) {
-        case btnUP:
-          sendEventToQueue(event::Up);
-          break;
-        case btnDOWN:
-          sendEventToQueue(event::Down);
-          break;
-        case btnLEFT:
-          sendEventToQueue(event::Left);
-          break;
-        case btnRIGHT:
-          sendEventToQueue(event::Right);
-          break;
-        case btnSELECT:
-          sendEventToQueue(event::Close);  // 閉じる
-          // ウインドウ切り替えは CLose 処理でやる
-          sendEventToQueue(event::Open);  // ビジュアルウィンドウ表示
-          break;
-        default:
-          break;
-      }
-      break;
+  } else if (ndConfig.currentMode == MODE_SERIAL) {
+    // The host owns clocks and registers; local buttons only navigate the UI.
+    if (button == btnSELECT) {
+      sendEvent(disp.currentView == ViewMode::Visual ? event::Close : event::Option);
     }
-    case ViewMode::Visual: {  // ビジュアル
-      switch (inputBuffer) {
-        case btnUP:
-          ndFile.dirPlay(1);
-          break;
-        case btnDOWN:
-          ndFile.dirPlay(-1);
-          break;
-        case btnLEFT:
-          ndFile.filePlay(1);
-          break;
-        case btnRIGHT:
-          ndFile.filePlay(-1);
-          break;
-        case btnSELECT:
-          disp.stopTimerDrawing = true;    // タイマー描画更新停止
-          sendEventToQueue(event::Close);  // 閉じてプレイヤーへ
-          break;
-        default:
-          break;
-      }
-      break;
-    }
-    case ViewMode::Serial: {  // シリアル
-      switch (inputBuffer) {
-        case btnUP: {
-          serialMan.changeYM2612Clock();
-          break;
-        }
-        case btnDOWN: {
-          serialMan.changeSN76489Clock();
-          break;
-        }
-        case btnRIGHT: {
-          break;
-        }
-        case btnLEFT: {
-          break;
-        }
-        case btnSELECT: {
-          // Config 画面を開く
-          disp.currentView = ViewMode::Config;
-          sendEventToQueue(event::Open);
-          break;
-        }
-      }
-      break;
-    }
-    default: {
+  } else if (disp.currentView == ViewMode::Visual || disp.currentView == ViewMode::Player) {
+    switch (button) {
+      case btnUP: ndFile.requestDirPlay(1); break;
+      case btnDOWN: ndFile.requestDirPlay(-1); break;
+      case btnLEFT: ndFile.requestFilePlay(1); break;
+      case btnRIGHT: ndFile.requestFilePlay(-1); break;
+      case btnSELECT:
+        sendEvent(disp.currentView == ViewMode::Visual ? event::Close : event::Option);
+        break;
+      default: break;
     }
   }
-
-  inputBuffer = btnNONE;
 }
 
-void Input::setEnabled(bool state) { _enabled = state; }
+void Input::setEnabled(bool state) {
+  _enabled = state;
+  if (!state) {
+    if (buttonQueue != nullptr) xQueueReset(buttonQueue);
+    if (inputEventQueue != nullptr) xQueueReset(inputEventQueue);
+    ndFile.clearPlaybackQueue();
+  }
+}
 
-//----------------------------------------------------------------------
-// ボタンの状態取得
+bool Input::isEnabled() const { return _enabled; }
+
+// ND7 の抵抗分圧値は維持する。
 Button Input::_readButton() {
-  u16_t in = analogRead(INPUT_PIN);
-  // Serial.printf("%d\n", in);
-  if (in > VAL_NONE - 100)
-    return btnNONE;
-  else if (in < VAL_0 + 100)
-    return btnSELECT;
-  else if (VAL_1 - 80 <= in && in < VAL_1 + 80)
-    return btnRIGHT;
-  else if (VAL_2 - 100 <= in && in < VAL_2 + 100)
-    return btnLEFT;
-  else if (VAL_3 - 120 <= in && in < VAL_3 + 120)
-    return btnDOWN;
-  else if (VAL_4 - 180 <= in && in < VAL_4 + 180)
-    return btnUP;
-
+  const uint16_t in = analogRead(INPUT_PIN);
+  if (in > VAL_NONE - 100) return btnNONE;
+  if (in < VAL_0 + 100) return btnSELECT;
+  if (VAL_1 - 80 <= in && in < VAL_1 + 80) return btnRIGHT;
+  if (VAL_2 - 100 <= in && in < VAL_2 + 100) return btnLEFT;
+  if (VAL_3 - 120 <= in && in < VAL_3 + 120) return btnDOWN;
+  if (VAL_4 - 180 <= in && in < VAL_4 + 180) return btnUP;
   return btnNONE;
 }
 
 Button Input::checkButton() {
-  uint32_t ms = millis();
-  Button btn = _readButton();  // ボタン取得
-
-  if (btn == btnNONE) {
-    _lastButton = btnNONE;
-    return btnNONE;
-  } else {
-    if (_lastButton == btn) {  // 前と同じボタンなら
-      if (_buttonRepeatStarted == 0) {
-        _buttonRepeatStarted = ms;  // リピート開始
-        return btn;
-      } else {
-        if (btn == btnSELECT || btn == btnFUNC ||
-            millis() - _buttonRepeatStarted < INPUT_REPEAT_DELAY) {  // リピート開始前
-          return btnNONE;
-        } else {
-          return btn;
-        }
-      }
-
-    } else {  // 前回と違うボタン
-      _lastButton = btn;
-      _btnFlag = false;
-      _buttonRepeatStarted = 0;
-
-      return btnNONE;
+  const uint32_t ms = millis();
+  const Button button = _readButton();
+  if (button == btnNONE) {
+    if (_lastButton == btnUP || _lastButton == btnDOWN || _lastButton == btnLEFT || _lastButton == btnRIGHT) {
+      ndFile.clearPlaybackQueue();
     }
+    _lastButton = btnNONE;
+    _buttonRepeatStarted = 0;
+    return btnNONE;
   }
+  if (_lastButton != button) {
+    _lastButton = button;
+    _buttonRepeatStarted = 0;
+    return btnNONE;
+  }
+  if (_buttonRepeatStarted == 0) {
+    _buttonRepeatStarted = ms;
+    return button;
+  }
+  if (button == btnSELECT || button == btnFUNC || ms - _buttonRepeatStarted < INPUT_REPEAT_DELAY) {
+    return btnNONE;
+  }
+  return button;
 }
 
-Input input = Input();
+Input input;

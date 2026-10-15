@@ -1,3 +1,6 @@
+#include <atomic>
+#include "serialman.h"
+
 #include "./disp.h"
 
 #include "pics.h"
@@ -77,6 +80,17 @@ static Label lblAuthor = Label(28, 233, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL
 static Label lblSystem = Label(28, 211, LCD_W - 28, C_GRAY, C_BASEBG, 17, SCROLL_SPEED_AUTHOR, Align::TopLeft);
 
 static SemaphoreHandle_t spFrameBuffer;  // 描画用セマフォ
+static std::atomic<bool> serialFooterPending{false};
+
+void serialModeUpdateFooter() {
+  serialFooterPending.store(true, std::memory_order_release);
+}
+
+void serialModeServiceDisplay() {
+  if (disp.currentView == ViewMode::Serial && serialFooterPending.exchange(false, std::memory_order_acq_rel)) {
+    disp.serialModeDraw();
+  }
+}
 
 /* 未使用。Core0描画用。不要なら削除可。
 void redrawOnCore0Task(void* pvParameters) {
@@ -101,8 +115,9 @@ Label::Label(const int16_t x, const int16_t y, const int16_t w, const uint16_t f
   _textAlign = textAlign;
 }
 
-void Label::setCaption(const String newCaption) {
-  if (_caption != newCaption) {
+void Label::prepareCaption(const String& newCaption) {
+  if (_caption != newCaption || _sprite.width() == 0) {
+    _enabled = false;
     _caption = newCaption;
 
     OpenFontRender ofr;
@@ -119,8 +134,9 @@ void Label::setCaption(const String newCaption) {
     _sprite.deleteSprite();
     _sprite.setPsram(true);
 
+    String renderCaption = _caption;
     if (_textWidth > _labelWidth) {
-      _caption += TITLE_DEVIDER;
+      renderCaption += TITLE_DEVIDER;
       _isScrolling = true;
       _sprite.createSprite(_textWidth + _devWidth, _fontSize);
 
@@ -137,40 +153,69 @@ void Label::setCaption(const String newCaption) {
       }
     }
 
+    if (_sprite.width() == 0) {
+      ofr.unloadFont();
+      return;
+    }
     _sprite.fillSprite(_bgColor);
-    ofr.printf(_caption.c_str());
+    ofr.printf("%s", renderCaption.c_str());
     ofr.unloadFont();
   }
+}
 
+void Label::drawPrepared() {
+  if (_sprite.width() == 0) return;
   _sprite.pushSprite(&frameBuffer, _x, _y);
   _n = 0;
+  _lastDrawOffset = -1;
   _scrollCount = 0;
   _startTick = millis();
   _enabled = true;
 }
 
+void Label::setCaption(const String& newCaption) {
+  prepareCaption(newCaption);
+  drawPrepared();
+}
+
 void Label::update() {
-  if (!_enabled) return;
+  if (!_enabled || !_isScrolling) return;
 
   // スクロール回数チェック
-  if (ndConfig.get(CFG_SCROLL) == SCROLL_INFINITE || _scrollCount < ndConfig.get(CFG_SCROLL)) {
-    if (_isScrolling && (millis() - _startTick >= SCROLL_DELAY)) {
-      lcd.setClipRect(_x, _y, _labelWidth, _sprite.height());
-      _sprite.pushSprite(&lcd, _x - (int32_t)_n, _y);
-      _sprite.pushSprite(&lcd, _x + _textWidth + _devWidth - (int32_t)_n, _y);
-      if (_n < _textWidth + _devWidth - _scrollSpeed) {
-        _n += _scrollSpeed;
-      } else {
-        _n = 0;
-        _startTick = millis();
-        _scrollCount++;
-      }
-      lcd.setClipRect(0, 0, LCD_W, LCD_H);
+  const int32_t scrollLimit = ndConfig.get(CFG_SCROLL);
+  if (scrollLimit != SCROLL_INFINITE && _scrollCount >= scrollLimit) return;
+
+  const uint32_t now = millis();
+  if (now - _startTick < SCROLL_DELAY) return;
+
+  const int32_t loopWidth = _textWidth + _devWidth;
+  const int32_t drawOffset = (int32_t)_n;
+  if (drawOffset != _lastDrawOffset) {
+    lcd.setClipRect(_x, _y, _labelWidth, _sprite.height());
+    _sprite.pushSprite(&lcd, _x - drawOffset, _y);
+
+    // 先頭側が見えるラップ境界のときだけ2枚目を描画する
+    if (drawOffset + (int32_t)_labelWidth > loopWidth) {
+      _sprite.pushSprite(&lcd, _x + loopWidth - drawOffset, _y);
     }
+    // ND7 の他の描画処理へクリップ範囲を持ち越さない。
+    lcd.setClipRect(0, 0, LCD_W, LCD_H);
+    _lastDrawOffset = drawOffset;
+  }
+
+  if (_n < loopWidth - _scrollSpeed) {
+    _n += _scrollSpeed;
+  } else {
+    _n = 0;
+    _lastDrawOffset = -1;
+    _startTick = now;
+    _scrollCount++;
   }
 }
 
-void Label::setEnabled(bool state) { _enabled = state; }
+void Label::setEnabled(bool state) {
+  _enabled = state;
+}
 
 //---------------------------------------------------------------------------
 // PNG draw for PNGDec lib
@@ -184,7 +229,7 @@ void pngDraw(PNGDRAW* pDraw) {
 // 描画更新タイマー処理
 void dispTimerHandler(void* param) {
   // プレイヤーのとき
-  if (disp.currentView == ViewMode::Player) {
+  if (disp.currentView == ViewMode::Player || disp.currentView == ViewMode::Serial) {
     if (!disp.stopTimerDrawing) {
       if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
         lblTitle.update();
@@ -194,10 +239,12 @@ void dispTimerHandler(void* param) {
         xSemaphoreGive(spFrameBuffer);
       }
 
-      uint64_t sec = vgm.getCurrentTimeSec();
-      if (disp.dispData.time != sec) {
-        disp.updateHeader(sec);
-        disp.dispData.time = sec;
+      if (disp.currentView == ViewMode::Player) {
+        const uint64_t sec = vgm.getCurrentTimeSec();
+        if (disp.dispData.time != sec) {
+          disp.updateHeader(sec);
+          disp.dispData.time = sec;
+        }
       }
     }
   } else if (disp.currentView == ViewMode::Visual) {
@@ -372,6 +419,11 @@ void Disp::drawBG() {  // 背景描画
 }
 
 void Disp::redraw() {  // プレーヤー描画
+  if (ndConfig.currentMode == MODE_SERIAL) {
+    disp.currentView = ViewMode::Serial;
+    serialModeDraw();
+    return;
+  }
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
 
   this->stopTimerDrawing = true;
@@ -501,6 +553,11 @@ void Disp::updateHeader(uint64_t sec) {
 // シリアルモード画面描画
 void Disp::serialModeDraw() {
   xSemaphoreTake(spFrameBuffer, portMAX_DELAY);
+  // A footer request may have raced with opening settings on the other core.
+  if (currentView != ViewMode::Serial) {
+    xSemaphoreGive(spFrameBuffer);
+    return;
+  }
   this->stopTimerDrawing = true;
   this->drawBG();
   render.setUseRenderTask(false);
@@ -513,23 +570,9 @@ void Disp::serialModeDraw() {
   render.setFontColor(C_YELLOW, C_DARK);
   render.setCursor(27, 284);
 
-  if (vgm.freq[0] != SI5351_UNDEFINED) {
-    char buf[7];
-    dtostrf((double)vgm.freq[0] / 1000000.0, 1, 4, buf);
-    String st = "YM2612 @ " + String(buf).substring(0, 5) + " MHz";
-    render.printf(st.c_str());
-  } else {
-    render.printf("YM2612 @ -- MHz");
-  }
+  render.printf("OPN x2 @ %.3f MHz", serialMan.chipClock(0) / 1000000.0);
   render.setCursor(27, 303);
-  if (vgm.freq[1] != SI5351_UNDEFINED) {
-    char buf[7];
-    dtostrf((double)vgm.freq[1] / 1000000.0, 1, 4, buf);
-    String st = "SN76489 @ " + String(buf).substring(0, 5) + " MHz";
-    render.printf(st.c_str());
-  } else {
-    render.printf("SN76489 @ -- MHz");
-  }
+  render.printf("OPL3 @ %.3f MHz", serialMan.chipClock(1) / 1000000.0);
 
   render.setFontColor(C_LIGHTGRAY, C_FOOTER_INACTIVE);
   render.setCursor(11, 284);
@@ -550,19 +593,13 @@ void Disp::serialModeDraw() {
   render.printf("--");
   render.unloadFont();
 
-  if (ndConfig.get(CFG_LANG) == LANG_JA) {
-    lblTitle.setCaption("シリアルモード");
-    lblGame.setCaption("ベータ版");
-    lblAuthor.setCaption("--");
-    lblSystem.setCaption("メガドライブ");
-  } else {
-    lblTitle.setCaption("Serial Mode");
-    lblGame.setCaption("Beta Version");
-    lblAuthor.setCaption("--");
-    lblSystem.setCaption("Mega Drive / Genesis");
-  }
+  lblTitle.setCaption(ndConfig.get(CFG_LANG) == LANG_JA ? "シリアルモード" : "Serial Mode");
+  lblGame.setCaption(String("NDSIF v") + ndsif::VERSION);
+  lblAuthor.setCaption("--");
+  lblSystem.setCaption("YM2203 x2 / YMF262 / YM2413");
 
   frameBuffer.pushSprite(0, 0);
+  this->stopTimerDrawing = false;
   xSemaphoreGive(spFrameBuffer);
 }
 
@@ -614,39 +651,40 @@ void CFGWindow::initHeaders() {
   disp.render.unloadFont();
 }
 
-// イベントキューはサブコアで処理するのでメインに影響しない
-void CFGWindow::inputHandler(event event) {
+// ND6 の PlayerWindow 相当。ND7 の表示クラスを維持してイベントを受ける。
+void Disp::eventHandler(event ev) {
+  if (ev == event::Option) {
+    cfgWindow.show();
+  } else if (ev == event::SwitchView) {
+    visualWindow.show();
+  }
+}
+
+void CFGWindow::show() {
+  disp.stopTimerDrawing = true;
+  disp.currentView = ViewMode::Config;
+  isVisible = true;
+  draw();
+}
+
+void CFGWindow::close() {
+  if (static_cast<tMode>(ndConfig.get(CFG_MODE)) != ndConfig.currentMode) {
+    ndConfig.saveCfgNow();
+    ESP.restart();
+    return;
+  }
+  isVisible = false;
+  // ND6 の ADC 操作と同じく、設定を閉じると鍵盤表示へ進む。
+  visualWindow.show();
+}
+
+void CFGWindow::eventHandler(event ev) {
   if (disp.currentView == ViewMode::Config) {
-    switch (event) {
-      case event::Open: {
-        isVisible = true;
-        this->draw();
+    switch (ev) {
+      case event::Close:
+      case event::SwitchView:
+        close();
         break;
-      }
-      case event::Close: {
-        Serial.printf("CFG Window::Close event.\n");
-        disp.stopTimerDrawing = true;  // タイマー更新停止
-        isVisible = false;
-        disp.currentView = ViewMode::Visual;
-
-        // モードが違えば再起動
-        /*if ((tMode)ndConfig.items[CFG_MODE].index != ndConfig.currentMode) {
-          ESP.restart();
-          return;
-        }
-        */
-
-        // disp.currentView = ViewMode::Player;
-        // disp.currentView = ViewMode::Visual;
-
-        // 現在のモードに合わせて再描画
-        /*if (ndConfig.currentMode == MODE_PLAYER) {
-          disp.redraw();
-        } else if (ndConfig.currentMode == MODE_SERIAL) {
-          disp.serialModeDraw();
-        }*/
-        break;
-      }
       case event::Up: {
         if (this->currentItemIndex != 0) {
           this->currentItemIndex--;
@@ -840,11 +878,21 @@ void VisualWindow::init() {
   keyboardBufferSub.createSprite(keyboard2Width, keyboard2Height);
 }
 
-void VisualWindow::close() {}
+void VisualWindow::show() {
+  disp.stopTimerDrawing = true;
+  disp.currentView = ViewMode::Visual;
+  draw();
+}
+
+void VisualWindow::close() {
+  disp.stopTimerDrawing = true;
+  disp.currentView = ndConfig.currentMode == MODE_SERIAL ? ViewMode::Serial : ViewMode::Player;
+  disp.redraw();
+}
 
 void VisualWindow::draw() {
   // uint32_t t0 = millis();
-  if (xSemaphoreTake(spFrameBuffer, 0) == pdTRUE) {
+  if (xSemaphoreTake(spFrameBuffer, portMAX_DELAY) == pdTRUE) {
     frameBuffer.pushImage(0, 0, 170, 320, keyboard);
     frameBuffer.pushSprite(0, 0);
     xSemaphoreGive(spFrameBuffer);
@@ -856,10 +904,11 @@ void VisualWindow::draw() {
 
 // 更新処理
 void VisualWindow::update() {
+  if (xSemaphoreTake(spFrameBuffer, 0) != pdTRUE) return;
   // uint32_t t0 = millis();
 
   // キー情報更新
-  if (disp.currentView == ViewMode::Visual) {
+  if (disp.currentView == ViewMode::Visual && !disp.stopTimerDrawing) {
     // キーボードのスプライト配置
     keyboardBufferSub.setColor(TFT_RED);
 
@@ -914,6 +963,7 @@ void VisualWindow::update() {
 
   // uint32_t t1 = millis();
   // Serial.printf("VisualWindow::update time: %d ms\n", t1 - t0);
+  xSemaphoreGive(spFrameBuffer);
 }
 
 // 個別のキーボードを描画する
@@ -957,39 +1007,17 @@ boolean VisualWindow::drawKeyboard(LGFX_Sprite& sprite, t_device device) {
 }
 
 // イベント処理
-void VisualWindow::inputHandler(event ev) {
+void VisualWindow::eventHandler(event ev) {
   switch (ev) {
-    case event::Open: {
-      this->draw();
+    case event::Option:
+      draw();
       break;
-    }
-    case event::Close: {
-      // プレイヤー画面へ遷移
-      disp.currentView = ViewMode::Player;
-      disp.redraw();
-      disp.stopTimerDrawing = false;  // タイマー描画更新再開
-
-      // 現在のモードに合わせて再描画
-      /*if (ndConfig.currentMode == MODE_PLAYER) {
-        disp.redraw();
-      } else if (ndConfig.currentMode == MODE_SERIAL) {
-        disp.serialModeDraw();
-      }*/
-
+    case event::Close:
+    case event::SwitchView:
+      close();
       break;
-    }
-    case event::Up: {
+    default:
       break;
-    }
-    case event::Down: {
-      break;
-    }
-    case event::Left: {
-      break;
-    }
-    case event::Right: {
-      break;
-    }
   }
 }
 

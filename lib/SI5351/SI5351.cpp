@@ -250,7 +250,7 @@ void SI5351_cls::setFreq(si5351Freq_t newFreq, uint8_t outputCh) {
       break;
   }
 
-  Serial.printf("SetFreq: ch %d, %d Hz\n", outputCh, newFreq);
+  // USB CDC is also the binary NDSIF transport; keep clock writes silent.
   si5351PLL_t targetPLL;
 
   if (outputCh == 0) {

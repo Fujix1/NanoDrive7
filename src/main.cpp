@@ -38,6 +38,7 @@
 #include "file.h"
 #include "fm.h"
 #include "input.h"
+#include "serialman.h"
 #include "vgm.h"
 
 void setup() {
@@ -45,7 +46,7 @@ void setup() {
   digitalWrite(D0, HIGH);
   pinMode(D0, OUTPUT);
 
-  Serial.begin(115200);
+  serialMan.beginUsb();
   Serial.printf("Heap - %'d Bytes free\n", ESP.getFreeHeap());
   Serial.printf("Flash - %'d Bytes at %'d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
   Serial.printf("PSRAM - Total %'d, Free %'d\n", ESP.getPsramSize(), ESP.getFreePsram());
@@ -60,7 +61,7 @@ void setup() {
   lcd.setFont(&fonts::Font2);
   lcd.println("NANO DRIVE 7");
   lcd.println("2024-2026 Fujix@e2j.net");
-  lcd.printf("Firmware: 3.2.1\n\n");
+  lcd.printf("Firmware: %s\n\n", ND_FIRMWARE_VERSION);
 
   // PSRAM 初期化確認
   if (psramInit()) {
@@ -92,8 +93,19 @@ void setup() {
   // ビジュアル初期化
   visualWindow.init();
 
-  // 動作切り替え
-  // if (ndConfig.currentMode == MODE_PLAYER) {
+  // Both modes use the settings screen and ADC input. Initialize before RX starts.
+  cfgWindow.init();
+  const bool inputReady = input.init();
+  if (!inputReady) Serial.println("Failed: input init.");
+
+  // The NDSIF receiver owns chip I/O. No SD, file buffers or file playback in this mode.
+  if (ndConfig.currentMode == MODE_SERIAL) {
+    serialMan.init();
+    serialMan.startSerialTask();
+    if (inputReady) input.setEnabled(true);
+    return;
+  }
+
   // SD読み込み
   if (ndFile.init() == true) {
     ndFile.listDir("/");
@@ -123,16 +135,7 @@ void setup() {
     default:
       ndFile.dirPlay(0);
   }
-  /*} else {
-    lcd.printf("Entering Serial Mode.\n");
-  }
-  */
-
-  // 入力有効化
-  input.init();
-  input.setEnabled(true);
-
-  cfgWindow.init();
+  if (inputReady) input.setEnabled(true);
 
   Serial.printf("Heap - %'d Bytes free\n", ESP.getFreeHeap());
   Serial.printf("Flash - %'d Bytes at %'d\n", ESP.getFlashChipSize(), ESP.getFlashChipSpeed());
@@ -140,6 +143,13 @@ void setup() {
 }
 
 void loop() {
+  if (ndConfig.currentMode == MODE_SERIAL) {
+    while (true) {
+      // Fonts and frame transfer run outside the receiving task.
+      serialModeServiceDisplay();
+      vTaskDelay(pdMS_TO_TICKS(10));
+    }
+  }
   while (1) {
     if (vgm.vgmLoaded) {
       vgm.vgmProcess();
@@ -152,6 +162,8 @@ void loop() {
         vgm.xgm2Process();
     }
 #endif
-    input.inputHandler();
+    // 入力タスクからの曲移動要求を、再生データの所有者側で実行する。
+    ndFile.processPlaybackQueue();
+    if (!vgm.vgmLoaded && !vgm.xgmLoaded) vTaskDelay(1);
   }
 }

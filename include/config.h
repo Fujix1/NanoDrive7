@@ -51,10 +51,11 @@ typedef struct {
 
 class NDConfig {
  public:
-  tMode currentMode;
+  tMode currentMode = MODE_PLAYER;  // 実行中のモード。保存値は get(CFG_MODE) で取得する。
   std::vector<sConfig> items;
   void init();
   void saveCfg();
+  void saveCfgNow();
   void saveHistory();
   void loadCfg();
   u32_t loadHistory();

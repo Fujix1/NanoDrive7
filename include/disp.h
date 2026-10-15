@@ -62,6 +62,7 @@ class Disp {
  private:
   LGFX_Sprite _sprHeader;  // ヘッダ部分のスプライト
  public:
+  void eventHandler(event ev);     // プレーヤー／シリアル画面のイベント
   bool init();                      // 初期化
   void drawBG();                    // 背景描画
   void redraw();                    // プレーヤー描画
@@ -80,6 +81,10 @@ class Disp {
 
 extern Disp disp;
 
+// The RX task only requests footer updates; the serial-mode loop draws them.
+void serialModeUpdateFooter();
+void serialModeServiceDisplay();
+
 // Label クラス
 class Label {
  public:
@@ -88,12 +93,16 @@ class Label {
         const int16_t w,  // 幅
         const uint16_t fontColor, const uint16_t bgColor, const uint16_t fontSize, const float scrollSpeed,
         const Align textAlign);
-  void setCaption(String newCaption);
+  // 呼び出し側で描画用セマフォを取得してから操作する。
+  void prepareCaption(const String& newCaption);
+  void drawPrepared();
+  void setCaption(const String& newCaption);
   void update();
   void setEnabled(bool state);
 
  private:
   float _n = 0;  // ラベルスクロール量
+  int32_t _lastDrawOffset = -1;
   uint32_t _x = 0, _y = 0, _labelWidth = 0, _textWidth = 0, _devWidth = 0, _startTick = 0;
   uint16_t _fontColor;
   uint16_t _fontSize;
@@ -101,7 +110,7 @@ class Label {
   String _caption;
   LGFX_Sprite _sprite;
   Align _textAlign;
-  int _scrollCount;  // スクロール済み回数
+  int _scrollCount = 0;  // スクロール済み回数
   bool _isScrolling = false;
   float _scrollSpeed;
   bool _enabled = false;
@@ -127,7 +136,9 @@ class CFGWindow {
   void draw();
   void drawItem(int index, bool toFrameBuffer);
   void drawFooter(bool toFrameBuffer);
-  void inputHandler(event event);
+  void show();
+  void close();
+  void eventHandler(event ev);
 };
 
 extern CFGWindow cfgWindow;
@@ -142,7 +153,8 @@ class VisualWindow {
   void draw();
   void update();
   void close();
-  void inputHandler(event ev);
+  void show();
+  void eventHandler(event ev);
 };
 
 extern VisualWindow visualWindow;

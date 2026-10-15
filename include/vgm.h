@@ -178,6 +178,10 @@ class VGM {
   void vgmProcessMain();
 
   void resetKeyInfo();
+  // Serial register writes use the same ND7 register caches and keyboard view.
+  void resetSerialState();
+  void writeSerialRegister(uint8_t id, uint8_t instance, uint8_t page, uint8_t address, uint8_t value);
+  void refreshSerialKeyInfo();
 
 #ifdef USE_XGM
   u8_t XGMVersion;  // XGM バージョン 1 or 2
@@ -213,7 +217,8 @@ class VGM {
   u8_t _ym2203_FM_reg[2][7] = {0};
   u8_t _ym2203_FM_prescaler = 4;   // 仕様と異なる
   u8_t _ym2203_SSG_prescaler = 2;  // 仕様と異なる
-  u8_t _ym2413_reg[0x38] = {0};
+  u8_t _ym2413_reg[0x40] = {0};
+  bool _serialFMKeyOn[2][3] = {};
   u8_t _ymf262_reg[2][256] = {0};
 
   //
@@ -267,7 +272,7 @@ class VGM {
     int fnum = _ym2413_reg[0x10 + ch] | ((_ym2413_reg[0x20 + ch] & 0x01) << 8);
     int block = (_ym2413_reg[0x20 + ch] >> 1) & 0x07;
 
-    constexpr double F_OSC = 3579545 / 72.0;
+    constexpr double F_OSC = ND_YM2413_CLOCK_HZ / 72.0;
     return (double)fnum * (1 << block) * F_OSC / (1 << 18);
   }
 

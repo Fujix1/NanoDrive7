@@ -10,10 +10,14 @@
 
 Preferences preferences;
 
-void _saveCFGonCore0(void* param) {
+static void saveConfigItems() {
   for (int i = 0; i < ndConfig.items.size(); i++) {
     preferences.putUChar(ndConfig.items[i].slug.c_str(), ndConfig.items[i].index);
   }
+}
+
+void _saveCFGonCore0(void* param) {
+  saveConfigItems();
   vTaskDelete(NULL);
 }
 
@@ -65,8 +69,8 @@ void NDConfig::init() {
                    {"None", "2 sec.", "5 sec.", "8 sec.", "10 sec.", "12 sec.", "15 sec."},
                    {FO_0, FO_2, FO_5, FO_8, FO_10, FO_12, FO_15}});
 
-  // items.push_back({”mode”, 0, "動作モード", "Mode", {"プレーヤー", "シリアル"}, {"Player", "Serial"}, {MODE_PLAYER,
-  // MODE_SERIAL}});
+  items.push_back(
+      {"mode", 0, "動作モード", "Mode", {"プレーヤー", "シリアル"}, {"Player", "Serial"}, {MODE_PLAYER, MODE_SERIAL}});
 
   preferences.begin("NanoDrive");
 }
@@ -77,6 +81,9 @@ void NDConfig::saveCfg() {
   nju72341.setFadeoutDuration(get(CFG_FADEOUT));
   return;
 }
+
+// Mode changes restart immediately after this synchronous write completes.
+void NDConfig::saveCfgNow() { saveConfigItems(); }
 
 // ヒストリ保存
 void NDConfig::saveHistory() {
@@ -94,12 +101,8 @@ void NDConfig::loadCfg() {
     }
   }
 
-  // 現在の動作モード
-  /*if (items.size() > CFG_MODE) {
-    currentMode = (tMode)items[CFG_MODE].index;
-  } else {
-    currentMode = MODE_PLAYER;
-  }*/
+  // Keep the active mode stable until a settings-triggered restart.
+  currentMode = static_cast<tMode>(get(CFG_MODE));
 }
 
 // 最後に開いたフォルダ番号の照合
