@@ -105,8 +105,8 @@ void VGM::writeSerialRegister(uint8_t id, uint8_t instance, uint8_t page, uint8_
   }
 }
 
-// Called once per BURST, rather than doing note calculations for every pair.
-void VGM::refreshSerialKeyInfo() {
+// Called at the display cadence by the receiver, independently of register BURSTs.
+bool VGM::refreshSerialKeyInfo() {
   NoteInfo next[DEVICE_COUNT][MAX_CHANNELS] = {};
   for (int chip = 0; chip < 2; ++chip) {
     for (int ch = 0; ch < 3; ++ch) {
@@ -121,10 +121,10 @@ void VGM::refreshSerialKeyInfo() {
     next[YMF262][ch] = freqToNote(_getYMF262Freq(0, ch));
     if (_ymf262_reg[1][0x05] & 1) next[YMF262][ch + 9] = freqToNote(_getYMF262Freq(1, ch));
   }
-  if (xSemaphoreTake(keyInfoMutex, portMAX_DELAY) == pdTRUE) {
-    memcpy(keyInfo, next, sizeof(keyInfo));
-    xSemaphoreGive(keyInfoMutex);
-  }
+  if (xSemaphoreTake(keyInfoMutex, 0) != pdTRUE) return false;
+  memcpy(keyInfo, next, sizeof(keyInfo));
+  xSemaphoreGive(keyInfoMutex);
+  return true;
 }
 
 //---------------------------------------------------------------------

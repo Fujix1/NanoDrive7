@@ -19,6 +19,18 @@ enum TransportLoss : uint32_t { BusReset = 1, ReceiveOverflow = 2, ExplicitDisca
 std::atomic<uint32_t> serialClocks[2]{{4000000}, {14318180}};
 uint8_t outputAttenuation = 0;
 bool opl3Enabled = false;
+// Owned by the receive task. Display calculations must not run per register BURST.
+bool keyInfoPending = false;
+uint32_t lastKeyInfoRefreshMs = 0;
+constexpr uint32_t keyInfoIntervalMs = 20;
+
+void refreshKeyInfoIfDue() {
+  const uint32_t now = millis();
+  if (!keyInfoPending || uint32_t(now - lastKeyInfoRefreshMs) < keyInfoIntervalMs) return;
+  lastKeyInfoRefreshMs = now;
+  // A busy renderer may postpone publication, but must never stall chip writes.
+  if (vgm.refreshSerialKeyInfo()) keyInfoPending = false;
+}
 
 // Only immediate register BURST and variable-clock features are advertised.
 // The board has no PCM stream or position-based register-event queues.
@@ -46,6 +58,8 @@ void resetChips() {
   nju72341.mute();
   FM.reset();
   vgm.resetSerialState();
+  keyInfoPending = false;
+  lastKeyInfoRefreshMs = millis();
   opl3Enabled = false;
   // Explicitly disable OPL3 NEW after reset, matching the OPL1/2 routes.
   FM.setRegisterOPL3(1, 0x05, 0, 2);
@@ -82,7 +96,7 @@ void writeRegisters(uint8_t id, uint8_t instance, uint8_t page, const uint8_t* p
     vgm.writeSerialRegister(id, instance, page, address, value);
     if (id == 0x5f && address == 0x05) opl3Enabled = (value & 1) != 0;
   }
-  vgm.refreshSerialKeyInfo();
+  keyInfoPending = true;
 }
 
 void setOutputVolume(uint8_t attenuation) {
@@ -127,7 +141,7 @@ bool setChipClock(uint8_t id, uint8_t instance, uint32_t hz) {
     serialClocks[slot].store(uint32_t(frequency), std::memory_order_relaxed);
     serialModeUpdateFooter();
   }
-  vgm.refreshSerialKeyInfo();
+  keyInfoPending = true;
   return true;
 }
 }  // namespace
@@ -327,6 +341,7 @@ void SerialMan::processCommands() {
     if (lossReason != 0) resetChips();
   }
   protocol.expire(millis());
+  refreshKeyInfoIfDue();
 
   for (size_t count = 0; count < 512; ++count) {
     if (protocol.outputSize() != 0) {

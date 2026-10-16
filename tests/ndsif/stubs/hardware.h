@@ -95,6 +95,6 @@ class VGM {
   bool _serialFMKeyOn[2][3];
   void resetSerialState();
   void writeSerialRegister(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
-  void refreshSerialKeyInfo() { ++keyRefreshes; }
+  bool refreshSerialKeyInfo() { ++keyRefreshes; return true; }
 };
 extern VGM vgm;

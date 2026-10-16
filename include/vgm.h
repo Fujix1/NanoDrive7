@@ -181,7 +181,7 @@ class VGM {
   // Serial register writes use the same ND7 register caches and keyboard view.
   void resetSerialState();
   void writeSerialRegister(uint8_t id, uint8_t instance, uint8_t page, uint8_t address, uint8_t value);
-  void refreshSerialKeyInfo();
+  bool refreshSerialKeyInfo();
 
 #ifdef USE_XGM
   u8_t XGMVersion;  // XGM バージョン 1 or 2

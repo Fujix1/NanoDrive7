@@ -98,7 +98,9 @@ class ProtocolTests(unittest.TestCase):
         pairs = b''.join(bytes([i, 255-i]) for i in range(127))
         self.write(0x55, 1, pairs=pairs)
         self.assertEqual(self.writes(), [(1,0,i,255-i) for i in range(127)])
-        self.assertEqual(D.metric(11), 1, 'Refresh keyboard once per burst')
+        self.assertEqual(D.metric(11), 0, 'Register burst must not calculate notes inline')
+        self.feed(b'',now=21)
+        self.assertEqual(D.metric(11), 1, 'Publish keyboard state at its own cadence')
 
     def test_ay_alias_and_frame_atomic_validation(self):
         self.write(0xa0, 0, pairs=b'\0\x42')
@@ -144,6 +146,30 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(D.metric(4),14318180, 'Native OPL3 must not be multiplied again')
         self.assertEqual(self.clock(0x5f,12000000),b'\0')
         self.assertEqual(D.metric(4),12000000)
+
+    def test_dense_bursts_do_not_recalculate_notes_per_packet(self):
+        wire = frame(0x5e,b'\0\0\xb0\x20')
+        self.feed(wire*100,now=1)
+        self.assertEqual(D.metric(1),100, 'All register writes must remain immediate')
+        self.assertEqual(D.metric(11),0, 'Note calculations must be deferred')
+        self.feed(b'',now=20)
+        self.assertEqual(D.metric(11),0)
+        self.feed(b'',now=21)
+        self.assertEqual(D.metric(11),1)
+        self.feed(wire*100,now=21)
+        self.assertEqual(D.metric(1),200)
+        self.assertEqual(D.metric(11),1)
+        self.feed(b'',now=41)
+        self.assertEqual(D.metric(11),2)
+        self.feed(b'',now=100)
+        self.assertEqual(D.metric(11),2, 'Unchanged state needs no refresh')
+        self.assertEqual(self.writes(),[(2,0,0xb0,0x20)]*200)
+
+    def test_reset_cancels_pending_key_refresh(self):
+        self.feed(frame(0x5e,b'\0\0\xb0\x20'),now=1)
+        self.send(0,kind=1)
+        self.feed(b'',now=100)
+        self.assertEqual(D.metric(11),0)
 
     def test_opl3_original_14260547_clock(self):
         for op in (0x5e, 0x5f):
