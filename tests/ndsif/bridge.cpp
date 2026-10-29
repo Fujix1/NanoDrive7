@@ -124,5 +124,6 @@ __declspec(dllexport) void discard() { serialMan.clearReceiveBuffer(); }
 __declspec(dllexport) void legacy() {
   // Keep ND8's original configure() API functional for future upstream merges.
   serialMan.protocol.configure(resetChips, [](uint8_t a, uint8_t v) { FM.setRegister(a, v, 0); }, "test");
+  serialMan.protocol.setDeviceInfo("NanoDrive 8", 4096, 1024);
 }
 }

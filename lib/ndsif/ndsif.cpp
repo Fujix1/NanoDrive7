@@ -6,7 +6,8 @@ void Protocol::configure(Reset reset, WriteYM write, const char* firmware, SetCl
   reset_ = reset;
   write_ = write;
   registerWrite_ = nullptr;
-  model_ = "NanoDrive 8";
+  extension_ = nullptr;
+  model_ = "";
   dataCapacity_ = 4096;
   eventCapacity_ = 1024;
   clock_ = clock;
@@ -113,14 +114,15 @@ void Protocol::dispatch(size_t size) {
   uint8_t* payload = raw_ + 9;
   // All sound IDs are one-way, including unsupported/reserved IDs and bad arguments.
   if (opcode >= 0x30) {
-    if (type == 0 && length >= 4 && (length & 1) == 0) {
+    const bool bytes = opcode == 0x50 || opcode == 0x30;
+    if (type == 0 && ((bytes && length >= 3) || (!bytes && length >= 4 && (length & 1) == 0))) {
       if (registerWrite_) {
         // Route only advertised targets. The board also validates addresses/aliases.
         for (size_t i = 0; i < capabilityCount_; ++i) {
           const Capability& e = capabilities_[i];
           if (e.writeID == opcode && e.instance == payload[0] && e.page == payload[1] &&
               (e.features & 1)) {
-            registerWrite_(opcode, payload[0], payload[1], payload + 2, (length - 2) / 2);
+            registerWrite_(opcode, payload[0], payload[1], payload + 2, bytes ? length - 2 : (length - 2) / 2);
             break;
           }
         }
@@ -182,7 +184,7 @@ void Protocol::dispatch(size_t size) {
               uint8_t(dataCapacity_), uint8_t(dataCapacity_ >> 8),
               uint8_t(dataCapacity_ >> 16), uint8_t(dataCapacity_ >> 24),
               uint8_t(eventCapacity_), uint8_t(eventCapacity_ >> 8),
-              uint8_t(volume_ ? 1 : 0), 0, uint8_t(next), uint8_t(next >> 8), uint8_t(count)};
+              uint8_t((volume_ ? 1 : 0) | (extension_ ? 2 : 0)), 0, uint8_t(next), uint8_t(next >> 8), uint8_t(count)};
           for (size_t i = 0; i < sizeof(header); ++i) payload[i] = header[i];
           size_t pos = HeaderSize;
           for (size_t i = 0; i < count; ++i) {
@@ -210,6 +212,10 @@ void Protocol::dispatch(size_t size) {
       }
       break;
     default:
+      if (extension_) {
+        const size_t count = extension_(type, opcode, payload, length, payload + 1);
+        if (count <= MAX_PAYLOAD - 1) { responseLength += count; status = 0; }
+      }
       break;
   }
   if (type == 0) return;
@@ -244,6 +250,9 @@ void Protocol::reply(uint8_t opcode, uint16_t request, size_t payloadSize) {
   }
   tx_[codePos] = code;
   tx_[dst++] = 0;
+  // HWCDC may stall on an exact 64-byte reply. An empty COBS delimiter
+  // makes the last USB packet short without changing the reply frame.
+  if (dst % 64 == 0 && dst < sizeof(tx_)) tx_[dst++] = 0;
   txSize_ = dst;
 }
 
