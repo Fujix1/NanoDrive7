@@ -92,32 +92,9 @@ YM2612とSN76489は独立した対象とし、両者をセットで必要とす�
 
 ### 6.3. YM2612 時間付きDACプロファイル（RC）
 
-ND6で実装・実機再生を確認した `profile=1` / `revision=40` を、YM2612向けの任意プロファイルとしてRCに記載する。これは全受信機への必須機能ではない。ND7・ND8は共通revision 40コアを使用するが、このプロファイルは実装していない。既存のMSM6258 ADPCM（`10`～`13`）も変更しない。
+ND6で実装・実機再生を確認した `profile=1` / `revision=40` はYM2612向けの任意プロファイルである。ND7・ND8は共通revision 40コアを使用するが、このプロファイルは実装していない。MSM6258の既存ADPCM（`10`～`13`）は変更しない。
 
-ホストは基本能力とプロファイル能力を確認する。現行revision 40実装ではGET_CAPABILITIESの `control_features` bit1が `18` の照会可否を示す。revision 39では同bitは予約であり、bit1だけでプロファイルの形式・対象・容量や将来の拡張への対応を推測しない。`18` の成功応答のprofile、revision、時刻単位、レコード形式と容量を確認して使用する。能力がない場合は対象コマンドを送らない。
-
-| ID | 要求 | message_type | 要求payload（整数はlittle-endian） |
-| --- | --- | --- | --- |
-| `18` | GET_DAC_CAPABILITIES | `01` | 空 |
-| `19` | DAC_DATA | `00` | profile:u8 + write_id:u8 + instance:u8 + sequence:u32 + position:u64 + records |
-| `1A` | DAC_START | `01` | profile:u8 + minimum_lead_ticks:u32 |
-| `1B` | DAC_END | `00` | profile:u8 + next_sequence:u32 + end_tick:u64 |
-| `1C` | DAC_STATUS | `01` | profile:u8 |
-| `1D` | REGISTER_EVENT | `00` | profile:u8 + tick:u64 + write_id:u8 + instance:u8 + page:u8 + writes |
-
-`18` の成功応答は共通statusの後に `profile:u8 + revision:u32 + ticks_per_second:u32 + record_capacity:u32 + event_capacity:u16 + max_records:u8 + record_bytes:u8 + max_dac_late_us:u32` を返す。revision 40/profile 1の時刻単位は44,100 ticks/s、record_bytesは4。容量・最大件数・許容遅延は応答に従う。ND6実装の8192レコード、512イベント、最大60レコード、2000µsを全受信機の固定値にしない。
-
-`19` の各レコードは `kind:u8 + value:u8 + wait_ticks:u16`。kind `0` はYM2612 `$2A` の8bit DAC値、`1` は `$2B` のbit7切替（`00` = CH6 FM、`80` = DAC）、`2` は値`00`で時間のみ進める。kind `0` / `1` はwait=0を許し、kind `2` のwaitは1以上。値とwaitは受信順に処理し、受信機による間引き・補間・暗黙のwait追加は行わない。レコード数は1以上で能力の最大件数以内とする。
-
-`sequence` はRESET後のレコード通番で最初は0、`position` は先行DATAの末尾tickと完全一致する。両方は周回させない。受信機はフレーム全体を検証してから受理する。revision 40の現行実装で指定できるDAC対象は `write_id=52`、`instance=0` であり、他個体や他の対象への拡張は今後の設計とする。
-
-`1D` はYM2612のFMレジスタ組、または対応するSN76489のbyte列を指定tickに予約する。ホストは対応区間のイベントを、その区間を確定するDATAより先に送る。イベント時刻は受理済みDATAの末尾以上かつ既存イベントの時刻以上。`52` page 0の `$2A` / `$2B` はイベントに入れずDATAで扱う。対象ごとの時刻付きイベント対応は実装の対応範囲を確認し、PSG搭載をYM2612の必須条件にしない。
-
-`1A` は、レコードが存在し、正の最小先行量が蓄積した状態で開始する。短い曲を全量供給して `1B` で確定した場合は最小先行量未満でも開始できる。`1B` は次通番と末尾tickを指定し、以降のDATA/EVENTを禁止する。最後のwaitと末尾イベントを処理して終了する。DATA/END/EVENTは無応答であり、欠落を推測して再送・間引きしない。
-
-`1C` の共通statusに続く72 byteは、`profile/state/fault/sealed` の各u8、accepted・consumed・queued・free・event_queued・event_consumed・underflows・overflows・rejected・late_dac・max_late_usの各u32、accepted_tick・played_tick・executed_tickの各u64。stateは0 Ready、1 Running、2 Ended、3 Fault。faultは0なし、1供給不足、2容量超過、3位置/通番不正、4引数不正、5 USB等のtransport reset、6 DAC遅延超過。障害時は停止し、RESET・初期化から再開する。遅延統計はスケジューラの観測値でありチップ端子の波形測定ではない。
-
-VGMのbank参照やDACストリームの展開・開始時の整理はホストの責務。tickは固定DAC周波数ではない。DAC/`$2B`と通常FM/PSGは別キューで処理される場合があり、通常FM/PSGの同時刻順序・遅延をDACと同じ精度で保証しない。複数受信機間の同期、周波数候補・共有制約の機械可読形式、YM2612の他個体や他チップ向け拡張は未確定である。
+能力照会、`18`～`1D` のwire形式、DACとFM/PSGの時刻・順序の保証範囲、および故障時の扱いは [API仕様](NDSIF_API.md) 第9節を参照する。各機器の容量・対応対象は能力照会と機種別資料で確認する。
 
 ### 6.4. 実装フェーズ
 
@@ -141,11 +118,11 @@ VGMのbank参照やDACストリームの展開・開始時の整理はホスト�
 
 ## 8. 文書と対応範囲
 
-- [API仕様](NDSIF_API.md): 既存revision 39のフレーム、要求ID、制御とMSM6258ストリームの詳細。revision 40/profile 1は本書第6.3節を参照する。
+- [API仕様](NDSIF_API.md): フレーム、要求ID、制御、MSM6258ストリームとYM2612時間付きDACプロファイルの詳細。
 - [ホスト手順](NDSIF_HOST_GUIDE.md): 対応確認、初期化、供給、復旧。
 - 各機種の対応資料: 実装済みの要求・プロファイルと、その機種での検証範囲。
 
-接続先が使うフレーム・APIを確認し、対応情報に従って使用する。RCの記載を全機種の実装済み宣言として扱わない。API詳細書にはrevision 39時点の草案と旧互換割当が残るため、RCの方針との差は第5節と第6.3節で区別する。文書版・フレーム版・各機器のAPI revisionは別である。
+接続先が使うフレーム・APIを確認し、対応情報に従って使用する。RCの記載を全機種の実装済み宣言として扱わない。API詳細書にはrevision 39時点の草案と旧互換割当が残るため、RCのホスト主導方針との差は第5節で区別する。文書版・フレーム版・各機器のAPI revisionは別である。
 
 ## 9. 変更履歴
 
